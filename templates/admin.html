@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+{% block title %}Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-wrapper">
+    
+    <!-- Заголовок -->
+    <div class="admin-header">
+        <div class="admin-title">
+            <div class="admin-icon">
+                <i class="fa-solid fa-shield"></i>
+            </div>
+            <div class="admin-title-text">
+                <h1>Панель управления</h1>
+                <p>
+                    <i class="fa-solid fa-calendar"></i>
+                    {{ now|localtime }}
+                </p>
+            </div>
+        </div>
+        <div class="admin-badge">
+            <i class="fa-solid fa-crown"></i>
+            Администратор
+            <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%; margin-left: 8px;"></span>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <span class="stat-label">Всего</span>
+            </div>
+            <div class="stat-value">{{ total_users }}</div>
+            <div class="stat-trend positive">
+                <i class="fa-solid fa-arrow-up"></i>
+                пользователей
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon">
+                    <i class="fa-solid fa-file"></i>
+                </div>
+                <span class="stat-label">Файлов</span>
+            </div>
+            <div class="stat-value">{{ total_files }}</div>
+            <div class="stat-trend">
+                <i class="fa-solid fa-hard-drive"></i>
+                в хранилище
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon">
+                    <i class="fa-solid fa-hard-drive"></i>
+                </div>
+                <span class="stat-label">Занято</span>
+            </div>
+            {% set total_size = users|sum(attribute='files', start=[])|sum(attribute='file_size') %}
+            <div class="stat-value">{{ (total_size / 1024 / 1024 / 1024)|round(2) }}</div>
+            <div class="stat-trend">
+                ГБ из {{ (max_content_length / 1024 / 1024 / 1024)|round }} ГБ
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon">
+                    <i class="fa-solid fa-crown"></i>
+                </div>
+                <span class="stat-label">Админы</span>
+            </div>
+            <div class="stat-value">{{ users|selectattr('role', 'equalto', 'admin')|list|length }}</div>
+            <div class="stat-trend">
+                <i class="fa-solid fa-user"></i>
+                {{ users|selectattr('role', 'equalto', 'user')|list|length }} обычных
+            </div>
+        </div>
+    </div>
+
+    <!-- Быстрые действия -->
+    <div class="quick-actions-grid">
+        <a href="{{ url_for('admin_all_files') }}" class="quick-action-card">
+            <div class="quick-action-icon">
+                <i class="fa-solid fa-file"></i>
+            </div>
+            <div class="quick-action-title">Все файлы</div>
+            <div class="quick-action-subtitle">Управление файлами</div>
+        </a>
+        
+        <a href="{{ url_for('lan_chat') }}" class="quick-action-card">
+            <div class="quick-action-icon">
+                <i class="fa-solid fa-comments"></i>
+            </div>
+            <div class="quick-action-title">Чат</div>
+            <div class="quick-action-subtitle">Общение в LAN</div>
+        </a>
+        
+        <a href="{{ url_for('index') }}" class="quick-action-card">
+            <div class="quick-action-icon">
+                <i class="fa-solid fa-house"></i>
+            </div>
+            <div class="quick-action-title">На главную</div>
+            <div class="quick-action-subtitle">Вернуться на сайт</div>
+        </a>
+        
+        <a href="{{ url_for('logout') }}" class="quick-action-card">
+            <div class="quick-action-icon">
+                <i class="fa-solid fa-sign-out-alt"></i>
+            </div>
+            <div class="quick-action-title">Выйти</div>
+            <div class="quick-action-subtitle">Завершить сессию</div>
+        </a>
+    </div>
+
+    <!-- Поиск -->
+    <div class="search-section">
+        <div class="search-container">
+            <input type="text" id="userSearch" class="search-input" placeholder="Поиск по имени или email...">
+            <button class="search-btn" onclick="filterUsers()">
+                <i class="fa-solid fa-search"></i>
+                Найти
+            </button>
+        </div>
+    </div>
+
+    <!-- Таблица пользователей -->
+    <div class="table-container">
+        <div class="table-header">
+            <div class="table-title">
+                <div class="table-title-icon">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <h2>Управление пользователями</h2>
+            </div>
+            <div class="table-stats">
+                <span class="stat-pill active">
+                    <i class="fa-solid fa-circle-check"></i>
+                    {{ users|selectattr('is_blocked', 'equalto', false)|list|length }} активных
+                </span>
+                <span class="stat-pill blocked">
+                    <i class="fa-solid fa-ban"></i>
+                    {{ users|selectattr('is_blocked', 'equalto', true)|list|length }} заблокированных
+                </span>
+            </div>
+        </div>
+        
+        <table class="admin-table" id="usersTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Пользователь</th>
+                    <th>Email</th>
+                    <th>Роль</th>
+                    <th>Статус</th>
+                    <th>Файлы</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr class="user-row" data-username="{{ user.username|lower }}" data-email="{{ user.email|lower }}">
+                    <td style="color: var(--text-muted); font-family: monospace;">#{{ user.id }}</td>
+                    <td>
+                        <div class="user-info">
+                            {% if user.avatar %}
+                            <img src="{{ url_for('avatar', filename=user.avatar) }}" class="user-avatar">
+                            {% else %}
+                            <div class="user-avatar-placeholder">
+                                <i class="fa-solid fa-user"></i>
+                            </div>
+                            {% endif %}
+                            <div class="user-details">
+                                <span class="user-name">{{ user.username }}</span>
+                                <span class="user-id">ID: {{ user.id }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="color: var(--text-muted);">{{ user.email }}</td>
+                    <td>
+                        <span class="badge {% if user.role == 'admin' %}badge-admin{% else %}badge-user{% endif %}">
+                            {% if user.role == 'admin' %}
+                                <i class="fa-solid fa-crown"></i> Админ
+                            {% else %}
+                                <i class="fa-solid fa-user"></i> Пользователь
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge {% if user.is_blocked %}badge-blocked{% else %}badge-active{% endif %}">
+                            {% if user.is_blocked %}
+                                <i class="fa-solid fa-ban"></i> Заблокирован
+                            {% else %}
+                                <i class="fa-solid fa-circle-check"></i> Активен
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="file-counter">
+                            <i class="fa-solid fa-file"></i>
+                            {{ user.files|length }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="action-group" style="display: flex; gap: 5px;">
+                            <a href="{{ url_for('profile', user_id=user.id) }}" 
+                               class="icon-btn view" title="Просмотр профиля">
+                                <i class="fa-solid fa-eye"></i>
+                            </a>
+                            
+                            <form action="{{ url_for('admin_toggle_block', user_id=user.id) }}"
+                                  method="POST"
+                                  style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" 
+                                        class="icon-btn {% if user.is_blocked %}unblock{% else %}block{% endif %}"
+                                        title="{% if user.is_blocked %}Разблокировать{% else %}Заблокировать{% endif %}"
+                                        style="border-color: var(--glass-border);">
+                                    {% if user.is_blocked %}
+                                        <i class="fa-solid fa-circle-check" style="color: var(--success);"></i>
+                                    {% else %}
+                                        <i class="fa-solid fa-ban" style="color: var(--error);"></i>
+                                    {% endif %}
+                                </button>
+                            </form>
+
+                            <button onclick='showDeleteModal({{ user.id }}, "{{ user.username }}")' 
+                                    class="icon-btn delete"
+                                    title="Удалить пользователя"
+                                    style="border-color: var(--glass-border);">
+                                <i class="fa-solid fa-trash-can" style="color: var(--error);"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if not users %}
+        <div class="empty-state">
+            <i class="fa-solid fa-face-frown"></i>
+            <h3>Пользователи не найдены</h3>
+            <p>В системе пока нет зарегистрированных пользователей</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Системная информация -->
+    <div class="system-info-grid">
+        <div class="info-card">
+            <div class="info-icon">
+                <i class="fa-solid fa-database"></i>
+            </div>
+            <div class="info-content">
+                <div class="info-label">Всего записей</div>
+                <div class="info-value">{{ total_users + total_files }}</div>
+            </div>
+        </div>
+        
+        <div class="info-card">
+            <div class="info-icon">
+                <i class="fa-solid fa-clock"></i>
+            </div>
+            <div class="info-content">
+                <div class="info-label">Текущее время</div>
+                <div class="info-value">{{ now|localtime }}</div>
+            </div>
+        </div>
+        
+        <div class="info-card">
+            <div class="info-icon">
+                <i class="fa-solid fa-hard-drive"></i>
+            </div>
+            <div class="info-content">
+                <div class="info-label">Средний размер файла</div>
+                <div class="info-value">
+                    {% if total_files > 0 %}
+                        {{ (total_size / total_files / 1024)|round(1) }} KB
+                    {% else %}
+                        0 KB
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-card">
+            <div class="info-icon">
+                <i class="fa-solid fa-calendar"></i>
+            </div>
+            <div class="info-content">
+                <div class="info-label">Последняя активность</div>
+                <div class="info-value">
+                    {% set last_active = users|map(attribute='last_seen')|select|max %}
+                    {% if last_active %}
+                        {{ last_active|localtime }}
+                    {% else %}
+                        Нет данных
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно подтверждения удаления -->
+<div id="deleteModal" class="custom-modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <h4>🗑 Удаление пользователя</h4>
+        <p id="deleteMessage">Вы уверены, что хотите удалить пользователя?</p>
+        <form id="deleteForm" method="POST" style="display: none;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        </form>
+        <div class="modal-buttons">
+            <button class="modal-btn" onclick="closeDeleteModal()">Отмена</button>
+            <button class="modal-btn delete" onclick="confirmDelete()" style="background: var(--error); color: white;">Удалить</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let deleteUserId = null;
+let deleteUsername = '';
+
+function filterUsers() {
+    const searchInput = document.getElementById('userSearch');
+    const filter = searchInput.value.toLowerCase();
+    const rows = document.querySelectorAll('.user-row');
+    
+    rows.forEach(row => {
+        const username = row.getAttribute('data-username') || '';
+        const email = row.getAttribute('data-email') || '';
+        
+        if (username.includes(filter) || email.includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('userSearch').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') {
+        filterUsers();
+    }
+});
+
+let searchTimeout;
+document.getElementById('userSearch').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(filterUsers, 300);
+});
+
+// Модальное окно удаления
+function showDeleteModal(userId, username) {
+    deleteUserId = userId;
+    deleteUsername = username;
+    document.getElementById('deleteMessage').textContent = `Вы уверены, что хотите удалить пользователя "${username}"? Это действие нельзя отменить.`;
+    document.getElementById('deleteModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+    document.body.style.overflow = '';
+    deleteUserId = null;
+    deleteUsername = '';
+}
+
+function confirmDelete() {
+    if (deleteUserId) {
+        const form = document.getElementById('deleteForm');
+        form.action = "{{ url_for('admin_delete_user', user_id=0) }}".replace('0', deleteUserId);
+        form.submit();
+    }
+}
+
+// Закрытие модального окна по клику вне
+window.onclick = function(event) {
+    if (event.target.classList.contains('custom-modal')) {
+        closeDeleteModal();
+    }
+};
+
+// Закрытие по Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeDeleteModal();
+    }
+});
+</script>
+{% endblock %}

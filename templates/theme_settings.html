@@ -1,0 +1,639 @@
+{% extends "base.html" %}
+
+{% block title %}Настройка темы - Space Share{% endblock %}
+
+{% block content %}
+<div class="theme-settings-container">
+  <div class="theme-settings-header">
+    <div class="theme-settings-icon">
+      <i class="fas fa-palette"></i>
+    </div>
+    <div class="theme-settings-title">
+      <h1>Настройка темы</h1>
+      <p>Создайте свой уникальный стиль интерфейса</p>
+    </div>
+  </div>
+
+  <div class="theme-settings-grid">
+    <!-- Левая колонка - Настройки -->
+    <div class="theme-settings-left">
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <i class="fas fa-sliders-h"></i>
+          <h3>Настройки темы</h3>
+        </div>
+
+        <form id="theme-settings-form" class="theme-settings-form">
+          <!-- Основные цвета -->
+          <div class="settings-section">
+            <div class="section-title">🎨 Основные цвета</div>
+            
+            <div class="setting-item">
+              <label>
+                <i class="fas fa-palette"></i> Акцентный цвет
+                <span class="color-preview" id="accent-preview"></span>
+              </label>
+              <input type="color" id="custom-accent" name="accent" value="{{ current_user.custom_accent or '#38bdf8' }}">
+            </div>
+
+            <div class="setting-item">
+              <label>
+                <i class="fas fa-fill-drip"></i> Фон страницы
+                <span class="color-preview" id="bg-preview"></span>
+              </label>
+              <input type="color" id="custom-bg" name="bg" value="{{ current_user.custom_bg or '#0b1120' }}">
+            </div>
+
+            <div class="setting-item">
+              <label>
+                <i class="fas fa-square"></i> Фон контейнера
+                <span class="color-preview" id="container-preview"></span>
+              </label>
+              <input type="color" id="custom-container" name="container" value="{{ current_user.custom_container or '#1e293b' }}">
+              <div class="setting-hint">
+                <input type="range" id="container-opacity" min="0" max="100" value="{{ current_user.custom_container_opacity or '70' }}">
+                <span>Прозрачность: <span id="opacity-value">{{ current_user.custom_container_opacity or '70' }}</span>%</span>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <label>
+                <i class="fas fa-font"></i> Цвет текста
+                <span class="color-preview" id="text-preview"></span>
+              </label>
+              <input type="color" id="custom-text" name="text" value="{{ current_user.custom_text or '#38bdf8' }}">
+            </div>
+
+            <div class="setting-item">
+              <label>
+                <i class="fas fa-font"></i> Второстепенный текст
+                <span class="color-preview" id="text-muted-preview"></span>
+              </label>
+              <input type="color" id="custom-text-muted" name="text_muted" value="{{ current_user.custom_text_muted or '#94a3b8' }}">
+            </div>
+
+            <div class="setting-item">
+              <label>
+                <i class="fas fa-check-circle"></i> Цвет успеха
+                <span class="color-preview" id="success-preview"></span>
+              </label>
+              <input type="color" id="custom-success" name="success" value="{{ current_user.custom_success or '#22c55e' }}">
+            </div>
+
+            <div class="setting-item">
+              <label>
+                <i class="fas fa-times-circle"></i> Цвет ошибки
+                <span class="color-preview" id="error-preview"></span>
+              </label>
+              <input type="color" id="custom-error" name="error" value="{{ current_user.custom_error or '#ef4444' }}">
+            </div>
+          </div>
+
+          <!-- Эффекты -->
+          <div class="settings-section">
+            <div class="section-title">✨ Эффекты</div>
+
+            <div class="setting-item">
+              <label>🌫️ Размытие фона</label>
+              <input type="range" id="custom-blur" min="0" max="20" step="1" value="{{ current_user.custom_blur or '10' }}">
+              <div class="range-value"><span id="blur-value">{{ current_user.custom_blur or '10' }}</span>px</div>
+            </div>
+
+            <div class="setting-item">
+              <label>🎭 Скругление углов</label>
+              <input type="range" id="custom-border-radius" min="0" max="30" step="2" value="{{ current_user.custom_border_radius or '8' }}">
+              <div class="range-value"><span id="radius-value">{{ current_user.custom_border_radius or '8' }}</span>px</div>
+            </div>
+
+            <div class="setting-item">
+              <label>✨ Свечение акцента</label>
+              <input type="range" id="custom-glow" min="0" max="30" step="1" value="{{ current_user.custom_glow or '15' }}">
+              <div class="range-value"><span id="glow-value">{{ current_user.custom_glow or '15' }}</span>px</div>
+            </div>
+
+            <div class="setting-item">
+              <label>⚡ Скорость анимации</label>
+              <select id="custom-animation-speed">
+                <option value="0.3" {% if current_user.custom_animation_speed == '0.3' %}selected{% endif %}>Быстрая (0.3s)</option>
+                <option value="0.6" {% if current_user.custom_animation_speed == '0.6' or not current_user.custom_animation_speed %}selected{% endif %}>Средняя (0.6s)</option>
+                <option value="1" {% if current_user.custom_animation_speed == '1' %}selected{% endif %}>Медленная (1s)</option>
+                <option value="0" {% if current_user.custom_animation_speed == '0' %}selected{% endif %}>Выключить</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Шрифты -->
+          <div class="settings-section">
+            <div class="section-title">✍️ Шрифты</div>
+
+            <div class="setting-item">
+              <label>🔤 Семейство шрифтов</label>
+              <select id="custom-font-family">
+                <option value="'Inter', system-ui" {% if current_user.custom_font_family == "'Inter', system-ui" or not current_user.custom_font_family %}selected{% endif %}>Inter (Современный)</option>
+                <option value="'Roboto', sans-serif" {% if current_user.custom_font_family == "'Roboto', sans-serif" %}selected{% endif %}>Roboto (Google)</option>
+                <option value="'Montserrat', sans-serif" {% if current_user.custom_font_family == "'Montserrat', sans-serif" %}selected{% endif %}>Montserrat (Элегантный)</option>
+                <option value="'Fira Code', monospace" {% if current_user.custom_font_family == "'Fira Code', monospace" %}selected{% endif %}>Fira Code (Моноширинный)</option>
+                <option value="'Poppins', sans-serif" {% if current_user.custom_font_family == "'Poppins', sans-serif" %}selected{% endif %}>Poppins (Дружелюбный)</option>
+                <option value="system-ui" {% if current_user.custom_font_family == "system-ui" %}selected{% endif %}>Системный шрифт</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <label>📏 Базовый размер</label>
+              <select id="custom-font-size">
+                <option value="14px" {% if current_user.custom_font_size == '14px' %}selected{% endif %}>Маленький (14px)</option>
+                <option value="16px" {% if current_user.custom_font_size == '16px' or not current_user.custom_font_size %}selected{% endif %}>Стандартный (16px)</option>
+                <option value="18px" {% if current_user.custom_font_size == '18px' %}selected{% endif %}>Большой (18px)</option>
+                <option value="20px" {% if current_user.custom_font_size == '20px' %}selected{% endif %}>Очень большой (20px)</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <label>📐 Межстрочный интервал</label>
+              <input type="range" id="custom-line-height" min="1" max="2" step="0.1" value="{{ current_user.custom_line_height or '1.6' }}">
+              <div class="range-value"><span id="line-height-value">{{ current_user.custom_line_height or '1.6' }}</span></div>
+            </div>
+          </div>
+
+          <!-- Сохранение -->
+          <div class="settings-actions">
+            <button type="button" class="btn-preview" id="preview-btn">
+              <i class="fas fa-eye"></i> Предпросмотр
+            </button>
+            <button type="submit" class="btn-save-theme">
+              <i class="fas fa-save"></i> Сохранить тему
+            </button>
+            <button type="button" class="btn-save-as" id="save-as-btn">
+              <i class="fas fa-copy"></i> Сохранить как...
+            </button>
+            <button type="button" class="btn-reset" id="reset-btn">
+              <i class="fas fa-undo"></i> Сбросить
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Правая колонка - Предпросмотр -->
+    <div class="theme-settings-right">
+      <div class="preview-card">
+        <div class="preview-card-header">
+          <i class="fas fa-desktop"></i>
+          <h3>Предпросмотр</h3>
+          <span class="live-badge">LIVE</span>
+        </div>
+        
+        <div class="preview-content" id="preview-area">
+          <!-- Примеры элементов -->
+          <div class="preview-section">
+            <h4>Заголовки</h4>
+            <h1>Заголовок H1</h1>
+            <h2>Заголовок H2</h2>
+            <h3>Заголовок H3</h3>
+          </div>
+
+          <div class="preview-section">
+            <h4>Текст</h4>
+            <p>Основной текст страницы. Здесь показано, как будет выглядеть обычный текст.</p>
+            <p class="text-muted">Второстепенный текст с меньшей важностью.</p>
+          </div>
+
+          <div class="preview-section">
+            <h4>Кнопки</h4>
+            <div class="button-group">
+              <button class="preview-btn primary">Основная</button>
+              <button class="preview-btn secondary">Вторичная</button>
+              <button class="preview-btn success">Успех</button>
+              <button class="preview-btn error">Ошибка</button>
+            </div>
+          </div>
+
+          <div class="preview-section">
+            <h4>Карточка</h4>
+            <div class="preview-card-example">
+              <div class="preview-card-icon">📁</div>
+              <div class="preview-card-title">Пример файла</div>
+              <div class="preview-card-meta">2.5 MB • Загружен сегодня</div>
+              <div class="preview-card-actions">
+                <button class="preview-card-btn">Просмотр</button>
+                <button class="preview-card-btn">Скачать</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="preview-section">
+            <h4>Формы</h4>
+            <input type="text" class="preview-input" placeholder="Поле ввода" value="Пример текста">
+            <textarea class="preview-textarea" placeholder="Текстовое поле"></textarea>
+          </div>
+
+          <div class="preview-section">
+            <h4>Уведомления</h4>
+            <div class="preview-alert success">✓ Успешное действие!</div>
+            <div class="preview-alert error">✗ Произошла ошибка</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Сохранённые темы -->
+      <div class="saved-themes-card">
+        <div class="saved-themes-header">
+          <i class="fas fa-star"></i>
+          <h3>Мои темы</h3>
+          <button class="refresh-themes" onclick="loadSavedThemes()">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+        </div>
+        <div id="saved-themes-list" class="saved-themes-list">
+          <!-- Список сохранённых тем -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модальное окно для сохранения темы -->
+<div id="save-theme-modal" class="modal-custom" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">💾 Сохранить тему</h3>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <label>Название темы:</label>
+      <input type="text" id="theme-name-input" placeholder="Например: Моя тёмная тема" class="modal-input">
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn cancel">Отмена</button>
+      <button class="modal-btn save" id="confirm-save">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// Live preview
+const inputs = ['accent', 'bg', 'container', 'text', 'text-muted', 'success', 'error'];
+inputs.forEach(input => {
+  const element = document.getElementById(`custom-${input}`);
+  if (element) {
+    element.addEventListener('input', updatePreview);
+    document.getElementById(`${input}-preview`)?.style.setProperty('background', element.value);
+  }
+});
+
+document.getElementById('custom-blur')?.addEventListener('input', updatePreview);
+document.getElementById('custom-border-radius')?.addEventListener('input', updatePreview);
+document.getElementById('custom-font-family')?.addEventListener('change', updatePreview);
+document.getElementById('container-opacity')?.addEventListener('input', function() {
+  document.getElementById('opacity-value').textContent = this.value;
+  updatePreview();
+});
+
+function updatePreview() {
+  const accent = document.getElementById('custom-accent')?.value || '#38bdf8';
+  const bg = document.getElementById('custom-bg')?.value || '#0b1120';
+  const containerRaw = document.getElementById('custom-container')?.value || '#1e293b';
+  const opacity = document.getElementById('container-opacity')?.value || 70;
+  const container = hexToRgba(containerRaw, opacity / 100);
+  const text = document.getElementById('custom-text')?.value || '#38bdf8';
+  const textMuted = document.getElementById('custom-text-muted')?.value || '#94a3b8';
+  const success = document.getElementById('custom-success')?.value || '#22c55e';
+  const error = document.getElementById('custom-error')?.value || '#ef4444';
+  const blur = document.getElementById('custom-blur')?.value || 10;
+  const radius = document.getElementById('custom-border-radius')?.value || 8;
+  const fontFamily = document.getElementById('custom-font-family')?.value || "'Inter', system-ui";
+  
+  const previewArea = document.getElementById('preview-area');
+  if (previewArea) {
+    previewArea.style.setProperty('--preview-accent', accent);
+    previewArea.style.setProperty('--preview-bg', bg);
+    previewArea.style.setProperty('--preview-container', container);
+    previewArea.style.setProperty('--preview-text', text);
+    previewArea.style.setProperty('--preview-text-muted', textMuted);
+    previewArea.style.setProperty('--preview-success', success);
+    previewArea.style.setProperty('--preview-error', error);
+    previewArea.style.setProperty('--preview-blur', `${blur}px`);
+    previewArea.style.setProperty('--preview-radius', `${radius}px`);
+    previewArea.style.setProperty('--preview-font', fontFamily);
+  }
+  
+  // Обновляем превью цветов
+  document.getElementById('accent-preview')?.style.setProperty('background', accent);
+  document.getElementById('bg-preview')?.style.setProperty('background', bg);
+  document.getElementById('container-preview')?.style.setProperty('background', container);
+  document.getElementById('text-preview')?.style.setProperty('background', text);
+  document.getElementById('text-muted-preview')?.style.setProperty('background', textMuted);
+  document.getElementById('success-preview')?.style.setProperty('background', success);
+  document.getElementById('error-preview')?.style.setProperty('background', error);
+  
+  document.getElementById('blur-value') && (document.getElementById('blur-value').textContent = blur);
+  document.getElementById('radius-value') && (document.getElementById('radius-value').textContent = radius);
+}
+
+function hexToRgba(hex, opacity) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+// Добавляем стили для превью
+const previewStyles = document.createElement('style');
+previewStyles.textContent = `
+  #preview-area {
+    --preview-accent: #38bdf8;
+    --preview-bg: #0b1120;
+    --preview-container: rgba(30, 41, 59, 0.7);
+    --preview-text: #38bdf8;
+    --preview-text-muted: #94a3b8;
+    --preview-success: #22c55e;
+    --preview-error: #ef4444;
+    --preview-blur: 10px;
+    --preview-radius: 8px;
+    --preview-font: 'Inter', system-ui;
+  }
+  
+  #preview-area * {
+    transition: all 0.3s ease;
+  }
+  
+  #preview-area h1, #preview-area h2, #preview-area h3, #preview-area h4,
+  #preview-area p, #preview-area span, #preview-area div {
+    color: var(--preview-text);
+  }
+  
+  #preview-area .text-muted {
+    color: var(--preview-text-muted);
+  }
+  
+  #preview-area .preview-card-example {
+    background: var(--preview-container);
+    backdrop-filter: blur(var(--preview-blur));
+    border-radius: var(--preview-radius);
+  }
+  
+  #preview-area .preview-input,
+  #preview-area .preview-textarea {
+    background: var(--preview-container);
+    backdrop-filter: blur(var(--preview-blur));
+    border-radius: var(--preview-radius);
+    color: var(--preview-text);
+  }
+  
+  #preview-area .preview-btn.primary {
+    background: var(--preview-accent);
+    border-radius: var(--preview-radius);
+  }
+  
+  #preview-area .preview-btn.secondary {
+    border-color: var(--preview-accent);
+    color: var(--preview-accent);
+    border-radius: var(--preview-radius);
+  }
+  
+  #preview-area .preview-btn.success {
+    background: var(--preview-success);
+    border-radius: var(--preview-radius);
+  }
+  
+  #preview-area .preview-btn.error {
+    background: var(--preview-error);
+    border-radius: var(--preview-radius);
+  }
+  
+  #preview-area .preview-card-btn {
+    background: rgba(0,0,0,0.2);
+    border-color: var(--preview-accent);
+    color: var(--preview-accent);
+    border-radius: var(--preview-radius);
+  }
+  
+  #preview-area .preview-alert.success {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: var(--preview-success);
+    color: var(--preview-success);
+    border-radius: var(--preview-radius);
+  }
+  
+  #preview-area .preview-alert.error {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--preview-error);
+    color: var(--preview-error);
+    border-radius: var(--preview-radius);
+  }
+  
+  #preview-area {
+    font-family: var(--preview-font);
+  }
+`;
+document.head.appendChild(previewStyles);
+
+// Сохранение темы
+const form = document.getElementById('theme-settings-form');
+form?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const saveBtn = document.querySelector('.btn-save-theme');
+  saveBtn.classList.add('loading-btn');
+  
+  const themeData = {
+    theme: 'custom',
+    accent: document.getElementById('custom-accent')?.value,
+    bg: document.getElementById('custom-bg')?.value,
+    container: document.getElementById('custom-container')?.value,
+    container_opacity: document.getElementById('container-opacity')?.value,
+    text: document.getElementById('custom-text')?.value,
+    text_muted: document.getElementById('custom-text-muted')?.value,
+    success: document.getElementById('custom-success')?.value,
+    error: document.getElementById('custom-error')?.value,
+    blur: document.getElementById('custom-blur')?.value,
+    border_radius: document.getElementById('custom-border-radius')?.value,
+    glow: document.getElementById('custom-glow')?.value,
+    animation_speed: document.getElementById('custom-animation-speed')?.value,
+    font_family: document.getElementById('custom-font-family')?.value,
+    font_size: document.getElementById('custom-font-size')?.value,
+    line_height: document.getElementById('custom-line-height')?.value
+  };
+  
+  try {
+    const response = await fetch('/set_theme', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content
+      },
+      body: JSON.stringify(themeData)
+    });
+    
+    if (response.ok) {
+      showToast('Тема сохранена! 🎨', 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast('Ошибка сохранения', 'error');
+    }
+  } catch (err) {
+    showToast('Ошибка: ' + err.message, 'error');
+  } finally {
+    saveBtn.classList.remove('loading-btn');
+  }
+});
+
+// Кнопка "Сохранить как"
+const saveAsModal = document.getElementById('save-theme-modal');
+const saveAsBtn = document.getElementById('save-as-btn');
+const confirmSave = document.getElementById('confirm-save');
+const modalClose = document.querySelector('.modal-close');
+const modalCancel = document.querySelector('.modal-btn.cancel');
+
+saveAsBtn?.addEventListener('click', () => {
+  saveAsModal.style.display = 'flex';
+});
+
+function closeModal() {
+  saveAsModal.style.display = 'none';
+}
+
+modalClose?.addEventListener('click', closeModal);
+modalCancel?.addEventListener('click', closeModal);
+saveAsModal?.addEventListener('click', (e) => {
+  if (e.target === saveAsModal) closeModal();
+});
+
+confirmSave?.addEventListener('click', async () => {
+  const name = document.getElementById('theme-name-input')?.value.trim();
+  if (!name) {
+    showToast('Введите название темы', 'error');
+    return;
+  }
+  
+  const themeData = {
+    name: name,
+    accent: document.getElementById('custom-accent')?.value,
+    bg: document.getElementById('custom-bg')?.value,
+    container: document.getElementById('custom-container')?.value,
+    container_opacity: document.getElementById('container-opacity')?.value,
+    text: document.getElementById('custom-text')?.value,
+    text_muted: document.getElementById('custom-text-muted')?.value,
+    success: document.getElementById('custom-success')?.value,
+    error: document.getElementById('custom-error')?.value,
+    blur: document.getElementById('custom-blur')?.value,
+    border_radius: document.getElementById('custom-border-radius')?.value,
+    glow: document.getElementById('custom-glow')?.value,
+    animation_speed: document.getElementById('custom-animation-speed')?.value,
+    font_family: document.getElementById('custom-font-family')?.value,
+    font_size: document.getElementById('custom-font-size')?.value,
+    line_height: document.getElementById('custom-line-height')?.value
+  };
+  
+  try {
+    const response = await fetch('/api/save-custom-theme', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content
+      },
+      body: JSON.stringify(themeData)
+    });
+    
+    if (response.ok) {
+      showToast('Тема сохранена в коллекцию! ⭐', 'success');
+      closeModal();
+      loadSavedThemes();
+      document.getElementById('theme-name-input').value = '';
+    } else {
+      showToast('Ошибка сохранения', 'error');
+    }
+  } catch (err) {
+    showToast('Ошибка: ' + err.message, 'error');
+  }
+});
+
+// Загрузка сохранённых тем
+async function loadSavedThemes() {
+  try {
+    const response = await fetch('/api/custom-themes');
+    const data = await response.json();
+    const container = document.getElementById('saved-themes-list');
+    
+    if (data.themes && data.themes.length > 0) {
+      container.innerHTML = data.themes.map(theme => `
+        <div class="saved-theme-item" onclick="applySavedTheme(${theme.id})">
+          <div class="saved-theme-preview" style="background: ${theme.bg}">
+            <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 4px; background: ${theme.accent}"></div>
+          </div>
+          <div class="saved-theme-info">
+            <div class="saved-theme-name">${escapeHtml(theme.name)}</div>
+            <div class="saved-theme-date">${theme.created_at || ''}</div>
+          </div>
+          <div class="saved-theme-actions" onclick="event.stopPropagation()">
+            <button class="saved-theme-apply" onclick="applySavedTheme(${theme.id})" title="Применить">✔️</button>
+            <button class="saved-theme-delete" onclick="deleteSavedTheme(${theme.id})" title="Удалить">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      container.innerHTML = '<div class="no-themes" style="text-align: center; padding: 40px; color: var(--text-muted);">Нет сохранённых тем<br><small>Создайте тему и нажмите "Сохранить как..."</small></div>';
+    }
+  } catch (err) {
+    console.error('Error loading themes:', err);
+  }
+}
+
+async function applySavedTheme(themeId) {
+  try {
+    const response = await fetch(`/api/apply-theme/${themeId}`, { method: 'POST' });
+    if (response.ok) {
+      showToast('Тема применена!', 'success');
+      setTimeout(() => location.reload(), 500);
+    }
+  } catch (err) {
+    showToast('Ошибка применения темы', 'error');
+  }
+}
+
+async function deleteSavedTheme(themeId) {
+  if (confirm('Удалить эту тему?')) {
+    try {
+      const response = await fetch(`/api/delete-theme/${themeId}`, { method: 'DELETE' });
+      if (response.ok) {
+        showToast('Тема удалена', 'success');
+        loadSavedThemes();
+      }
+    } catch (err) {
+      showToast('Ошибка удаления', 'error');
+    }
+  }
+}
+
+// Кнопка предпросмотра
+document.getElementById('preview-btn')?.addEventListener('click', () => {
+  updatePreview();
+  showToast('Предпросмотр обновлён 👀', 'success');
+});
+
+// Кнопка сброса
+document.getElementById('reset-btn')?.addEventListener('click', () => {
+  if (confirm('Сбросить все настройки темы?')) {
+    location.reload();
+  }
+});
+
+// Инициализация
+updatePreview();
+loadSavedThemes();
+
+function showToast(message, type) {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
+{% endblock %}

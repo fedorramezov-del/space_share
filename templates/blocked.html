@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Аккаунт заблокирован{% endblock %}
+
+{% block content %}
+
+<div class="file-batch" style="text-align:center; padding:40px;">
+    <h2 style="color:red;">🚫 Ваш аккаунт заблокирован</h2>
+
+    <img src="{{ url_for('static', filename='images/blocked.webp') }}"
+         class="blocked-image"
+         alt="Blocked">
+
+    <p style="margin-top:15px; color:var(--text-secondary);">
+        Доступ к сайту ограничен администратором.
+    </p>
+
+    <p style="margin-top:10px; color:gray;">
+        Если вы считаете это ошибкой — свяжитесь с администрацией.
+    </p>
+
+    <a href="{{ url_for('logout') }}" class="btn-action btn-delete" style="margin-top:20px; display:inline-block;">
+        Выйти из аккаунта
+    </a>
+</div>
+
+{% endblock %}

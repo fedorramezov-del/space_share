@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Ошибка сервера{% endblock %}
+
+{% block content %}
+<div class="container error-page">
+
+    <div class="error-card">
+        <h1 class="error-code">500</h1>
+        <h2>Ошибка сервера</h2>
+
+        <p class="error-text">
+            Что-то пошло не так. Попробуйте обновить страницу.
+        </p>
+
+        <a href="{{ url_for('index') }}" class="btn-action btn-view">
+            На главную
+        </a>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+
+{% block title %}Поиск{% endblock %}
+
+{% block content %}
+
+
+<!-- Прогресс-бар поиска -->
+<div id="searchProgress" class="search-progress"></div>
+
+<div class="auth-wrapper">
+    <div class="auth-card" style="max-width: 700px;">
+        
+        <!-- Заголовок с анимацией -->
+        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px;">
+            <div style="
+                width: 50px;
+                height: 50px;
+                border-radius: 15px;
+                background: var(--accent-dark);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.8rem;
+                color: var(--accent-color);
+                animation: pulse 2s ease infinite;
+            ">
+                <i class="fa-solid fa-search"></i>
+            </div>
+            <div>
+                <h2 style="margin: 0; font-size: 1.8rem;">Поиск файлов</h2>
+                <p style="color: var(--text-muted); margin: 5px 0 0 0;">
+                    Найдите нужные файлы в хранилище
+                </p>
+            </div>
+        </div>
+
+        <!-- Форма поиска -->
+        <form action="{{ url_for('search') }}" method="get" style="margin-bottom: 30px;" id="searchForm">
+            <div style="display: flex; gap: 10px; position: relative;">
+                <input
+                    type="text"
+                    name="q"
+                    id="searchInput"
+                    class="search-input"
+                    placeholder="🔍 Введите имя файла или тип (изображение, видео, документ)..."
+                    value="{% if query %}{{ query }}{% endif %}"
+                    autocomplete="off"
+                >
+                <button type="submit" class="search-button" id="searchBtn">
+                    <i class="fa-solid fa-search"></i>
+                    <span>Найти</span>
+                </button>
+            </div>
+            
+            <!-- Быстрые фильтры по ТИПАМ файлов -->
+            <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+                <span class="file-tag" onclick="quickSearch('изображение')">🖼️ Изображения</span>
+                <span class="file-tag" onclick="quickSearch('документ')">📄 Документы</span>
+                <span class="file-tag" onclick="quickSearch('видео')">🎬 Видео</span>
+                <span class="file-tag" onclick="quickSearch('аудио')">🎵 Аудио</span>
+                <span class="file-tag" onclick="quickSearch('архив')">🗜️ Архивы</span>
+                <span class="file-tag" onclick="quickSearch('код')">💻 Код</span>
+                <span class="file-tag" onclick="quickSearch('3d')">🎨 3D модели</span>
+            </div>
+        </form>
+
+        <!-- Результаты поиска с группировкой по типам -->
+        {% if files %}
+        <div style="margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: var(--text-main); display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-regular fa-circle-check" style="color: var(--success);"></i>
+                    Результаты поиска
+                </h3>
+                <span class="results-count">{{ files|length }} файлов</span>
+            </div>
+
+            <!-- Группировка файлов по типам -->
+            {% set groups = {
+                'Изображения': {'extensions': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], 'icon': '🖼️', 'fa': 'fa-image'},
+                'Документы': {'extensions': ['pdf', 'docx', 'doc', 'odt', 'txt', 'md', 'csv', 'json'], 'icon': '📄', 'fa': 'fa-file-alt'},
+                'Видео': {'extensions': ['mp4', 'webm', 'mov', 'avi', 'mkv'], 'icon': '🎬', 'fa': 'fa-video'},
+                'Аудио': {'extensions': ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'], 'icon': '🎵', 'fa': 'fa-music'},
+                'Архивы': {'extensions': ['zip', 'rar', '7z', 'tar', 'gz'], 'icon': '🗜️', 'fa': 'fa-file-zipper'},
+                'Код': {'extensions': ['html', 'css', 'js', 'py', 'xml', 'ini', 'cfg', 'log', 'json'], 'icon': '💻', 'fa': 'fa-code'},
+                '3D модели': {'extensions': ['stl', 'obj', 'gltf', 'glb', 'ply', 'fbx', '3mf', 'dae'], 'icon': '🎨', 'fa': 'fa-cube'},
+                'Ссылки': {'extensions': ['url', 'webloc', 'desktop'], 'icon': '🔗', 'fa': 'fa-link'},
+                'Другие': {'extensions': [], 'icon': '📁', 'fa': 'fa-file'}
+            } %}
+            
+            {% set grouped_files = {} %}
+            {% for file in files %}
+                {% set ext = file.filename.split('.')[-1].lower() if '.' in file.filename else '' %}
+                {% set group_name = "Другие" %}
+                {% for name, group in groups.items() %}
+                    {% if ext in group.extensions %}
+                        {% set group_name = name %}
+                    {% endif %}
+                {% endfor %}
+                {% set _ = grouped_files.update({group_name: grouped_files.get(group_name, []) + [file]}) %}
+            {% endfor %}
+            
+            {% for group_name, group_files in grouped_files.items() if group_files %}
+            <div class="file-type-group">
+                <div class="file-type-header">
+                    <div class="file-type-icon">
+                        <i class="fa-solid {{ groups[group_name].fa }}"></i>
+                    </div>
+                    <div class="file-type-title">
+                        {{ group_name }}
+                        <span class="file-type-count">{{ group_files|length }}</span>
+                    </div>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    {% for file in group_files %}
+                    {% set ext = file.filename.split('.')[-1].lower() if '.' in file.filename else '' %}
+                    <div class="search-result-item" style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 15px;
+                        border-radius: 12px;
+                        position: relative;
+                        overflow: hidden;
+                    " data-file-id="{{ file.id }}" data-file-size="{{ file.file_size }}">
+                        <!-- Декоративный элемент -->
+                        <div style="
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            width: 4px;
+                            height: 100%;
+                            background: linear-gradient(135deg, var(--accent-color), transparent);
+                        "></div>
+                        
+                        <!-- Информация о файле -->
+                        <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
+                            <div class="file-icon">
+                                {% if ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'] %}
+                                    <i class="fa-solid fa-file-image"></i>
+                                {% elif ext in ['mp4', 'avi', 'mov', 'wmv', 'mkv', 'webm'] %}
+                                    <i class="fa-solid fa-file-video"></i>
+                                {% elif ext in ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'] %}
+                                    <i class="fa-solid fa-file-audio"></i>
+                                {% elif ext in ['pdf'] %}
+                                    <i class="fa-solid fa-file-pdf"></i>
+                                {% elif ext in ['doc', 'docx'] %}
+                                    <i class="fa-solid fa-file-word"></i>
+                                {% elif ext in ['xls', 'xlsx'] %}
+                                    <i class="fa-solid fa-file-excel"></i>
+                                {% elif ext in ['zip', 'rar', '7z', 'tar', 'gz'] %}
+                                    <i class="fa-solid fa-file-zipper"></i>
+                                {% elif ext in ['stl', 'obj', 'gltf', 'glb', 'ply', 'fbx', '3mf', 'dae'] %}
+                                    <i class="fa-solid fa-cube"></i>
+                                {% elif ext in ['txt', 'py', 'js', 'css', 'html', 'json', 'xml', 'md'] %}
+                                    <i class="fa-solid fa-file-code"></i>
+                                {% else %}
+                                    <i class="fa-solid fa-file"></i>
+                                {% endif %}
+                            </div>
+                            
+                            <div style="min-width: 0; flex: 1;">
+                                <div class="file-name" title="{{ file.filename }}">
+                                    {{ file.filename|truncate(50) }}
+                                </div>
+                                <div class="file-meta">
+                                    <span class="file-size-badge" id="file-size-{{ file.id }}">
+                                        <i class="fa-regular fa-hard-drive"></i>
+                                        <span class="size-value">{{ file.file_size }}</span>
+                                        <span class="size-unit">B</span>
+                                    </span>
+                                    <span>
+                                        <i class="fa-regular fa-calendar"></i>
+                                        {{ file.upload_time.strftime('%d.%m.%Y') }}
+                                    </span>
+                                    <span>
+                                        <i class="fa-regular fa-file"></i>
+                                        .{{ ext }}
+                                    </span>
+                                    {% if file.description %}
+                                    <span>
+                                        <i class="fa-regular fa-note-sticky"></i>
+                                        {{ file.description|truncate(30) }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Действия -->
+                        <div style="display: flex; gap: 5px;">
+                            <a href="{{ url_for('view_file', file_id=file.id) }}" class="action-btn" title="Просмотр">
+                                <i class="fa-regular fa-eye"></i>
+                            </a>
+                            
+                            <a href="{{ url_for('download_file', file_id=file.id) }}" class="action-btn download" title="Скачать">
+                                <i class="fa-solid fa-download"></i>
+                            </a>
+                            
+                            <a href="{{ url_for('share_file', file_id=file.id) }}" class="action-btn share" title="Поделиться">
+                                <i class="fa-solid fa-share-nodes"></i>
+                            </a>
+                            
+                            {% if session.get('is_admin') or file.user_id == current_user.id %}
+                            <a href="#" onclick="showDeleteModal('{{ file.id }}', '{{ file.filename }}')" class="action-btn delete" title="Удалить">
+                                <i class="fa-regular fa-trash-can"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Скрипт для динамического форматирования размера каждого файла -->
+                    <script>
+                    (function() {
+                        const sizeElement = document.getElementById('file-size-{{ file.id }}');
+                        if (sizeElement) {
+                            const sizeValueSpan = sizeElement.querySelector('.size-value');
+                            const sizeUnitSpan = sizeElement.querySelector('.size-unit');
+                            if (sizeValueSpan && sizeUnitSpan) {
+                                const bytes = parseInt(sizeValueSpan.textContent) || 0;
+                                const formatted = formatFileSize(bytes);
+                                sizeValueSpan.textContent = formatted.value;
+                                sizeUnitSpan.textContent = formatted.unit;
+                            }
+                        }
+                    })();
+                    </script>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+            {% if query %}
+            <!-- Пустой результат с предложениями -->
+            <div class="empty-state">
+                <i class="fa-regular fa-face-frown"></i>
+                <h3>Ничего не найдено</h3>
+                <p>По запросу "{{ query }}" ничего не найдено</p>
+                <div style="margin-top: 20px;">
+                    <p style="color: var(--text-muted); margin-bottom: 10px;">Попробуйте поискать по типам файлов:</p>
+                    <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                        <span class="file-tag" onclick="quickSearch('изображение')">🖼️ Изображения</span>
+                        <span class="file-tag" onclick="quickSearch('документ')">📄 Документы</span>
+                        <span class="file-tag" onclick="quickSearch('видео')">🎬 Видео</span>
+                        <span class="file-tag" onclick="quickSearch('аудио')">🎵 Аудио</span>
+                        <span class="file-tag" onclick="quickSearch('3d')">🎨 3D модели</span>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- Начальное состояние -->
+            <div class="empty-state">
+                <i class="fa-solid fa-search"></i>
+                <h3>Начните поиск</h3>
+                <p>Введите название файла или тип для поиска</p>
+                <div style="margin-top: 20px;">
+                    <p style="color: var(--text-muted); margin-bottom: 10px;">Популярные типы:</p>
+                    <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                        <span class="file-tag" onclick="quickSearch('изображение')">🖼️ Изображения</span>
+                        <span class="file-tag" onclick="quickSearch('документ')">📄 Документы</span>
+                        <span class="file-tag" onclick="quickSearch('видео')">🎬 Видео</span>
+                        <span class="file-tag" onclick="quickSearch('аудио')">🎵 Аудио</span>
+                        <span class="file-tag" onclick="quickSearch('архив')">🗜️ Архивы</span>
+                        <span class="file-tag" onclick="quickSearch('код')">💻 Код</span>
+                        <span class="file-tag" onclick="quickSearch('3d')">🎨 3D модели</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Модальное окно для подтверждения удаления -->
+<div id="deleteModal" class="modal-overlay">
+    <div class="modal-container">
+        <button class="modal-close" onclick="closeModal('deleteModal')">
+            <i class="fa-solid fa-times"></i>
+        </button>
+        
+        <div class="modal-header">
+            <div class="modal-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--error);">
+                <i class="fa-regular fa-trash-can"></i>
+            </div>
+            <div>
+                <div class="modal-title">Удаление файла</div>
+                <div class="modal-subtitle">Это действие нельзя отменить</div>
+            </div>
+        </div>
+        
+        <div class="modal-content">
+            <div class="file-info-modal">
+                <i class="fa-regular fa-file"></i>
+                <div class="file-info-details">
+                    <div class="file-info-name" id="deleteFileName"></div>
+                    <div class="file-info-meta">Вы уверены, что хотите удалить этот файл?</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-secondary" onclick="closeModal('deleteModal')">
+                <i class="fa-regular fa-times"></i>
+                Отмена
+            </button>
+            <form method="POST" action="{{ url_for('delete_file', file_id=0) }}" id="deleteForm" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="modal-btn modal-btn-danger" id="confirmDeleteBtn">
+                    <i class="fa-regular fa-trash-can"></i>
+                    Удалить навсегда
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Глобальная переменная для CSRF токена
+const csrfToken = '{{ csrf_token() }}';
+
+// Функция для форматирования размера файла
+function formatFileSize(bytes) {
+    if (bytes === 0) return { value: 0, unit: 'B' };
+    
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const k = 1024;
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const value = bytes / Math.pow(k, i);
+    
+    let roundedValue;
+    if (value >= 100) {
+        roundedValue = Math.round(value);
+    } else if (value >= 10) {
+        roundedValue = value.toFixed(1);
+    } else {
+        roundedValue = value.toFixed(2);
+    }
+    
+    return {
+        value: roundedValue,
+        unit: units[i]
+    };
+}
+
+// Функция для форматирования всех размеров на странице
+function formatAllFileSizes() {
+    const sizeElements = document.querySelectorAll('[id^="file-size-"]');
+    sizeElements.forEach(element => {
+        const sizeValueSpan = element.querySelector('.size-value');
+        const sizeUnitSpan = element.querySelector('.size-unit');
+        if (sizeValueSpan && sizeUnitSpan) {
+            const bytes = parseInt(sizeValueSpan.textContent) || 0;
+            const formatted = formatFileSize(bytes);
+            sizeValueSpan.textContent = formatted.value;
+            sizeUnitSpan.textContent = formatted.unit;
+        }
+    });
+}
+
+// Запускаем форматирование после загрузки страницы
+document.addEventListener('DOMContentLoaded', function() {
+    formatAllFileSizes();
+});
+
+let currentFileId = null;
+let currentFileName = '';
+
+// Функции для модальных окон
+function showDeleteModal(fileId, fileName) {
+    currentFileId = fileId;
+    currentFileName = fileName;
+    document.getElementById('deleteFileName').textContent = fileName;
+    
+    const deleteForm = document.getElementById('deleteForm');
+    deleteForm.action = "{{ url_for('delete_file', file_id=0) }}".replace('0', fileId);
+    
+    document.getElementById('deleteModal').classList.add('active');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+// Быстрый поиск по типам файлов
+function quickSearch(query) {
+    document.getElementById('searchInput').value = query;
+    document.getElementById('searchForm').submit();
+}
+
+// Прогресс-бар при поиске
+document.getElementById('searchForm')?.addEventListener('submit', function() {
+    const progress = document.getElementById('searchProgress');
+    let width = 0;
+    const interval = setInterval(() => {
+        if (width >= 90) {
+            clearInterval(interval);
+        } else {
+            width += 10;
+            progress.style.width = width + '%';
+        }
+    }, 100);
+    
+    setTimeout(() => {
+        progress.style.width = '0%';
+    }, 2000);
+});
+
+// Закрытие модальных окон по клику на оверлей
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.classList.remove('active');
+        }
+    });
+});
+
+// Закрытие по ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+            modal.classList.remove('active');
+        });
+    }
+});
+
+// Анимация при наведении на результаты
+document.querySelectorAll('.search-result-item').forEach(item => {
+    item.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-2px) scale(1.02)';
+    });
+    
+    item.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0) scale(1)';
+    });
+});
+
+// Автоподсветка поискового запроса
+if (document.getElementById('searchInput')) {
+    document.getElementById('searchInput').focus();
+}
+
+// Дебаунс для поиска (автопоиск при вводе)
+let searchTimeout;
+document.getElementById('searchInput')?.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        if (this.value.length >= 2) {
+            document.getElementById('searchForm').submit();
+        }
+    }, 800);
+});
+
+// Функция для AJAX-запросов с CSRF защитой
+function fetchWithCSRF(url, options = {}) {
+    const defaultOptions = {
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin'
+    };
+    
+    return fetch(url, { ...defaultOptions, ...options });
+}
+</script>
+
+{% endblock %}

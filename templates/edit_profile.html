@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование профиля{% endblock %}
+
+{% block content %}
+
+<div class="edit-form-container">
+    <div class="edit-card">
+        <!-- Заголовок -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="
+                width: 70px;
+                height: 70px;
+                margin: 0 auto 20px;
+                background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+                border-radius: 25px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 2rem;
+                color: #0b1120;
+                animation: float 3s ease-in-out infinite;
+            ">
+                <i class="fa-solid fa-pen-to-square"></i>
+            </div>
+            <h2 style="margin: 0; font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-color), var(--accent-hover)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                Редактирование профиля
+            </h2>
+            <p style="color: var(--text-muted); margin-top: 8px;">
+                Обновите информацию о себе
+            </p>
+        </div>
+
+        <!-- Форма -->
+        <form method="POST" id="edit-profile-form" action="{{ url_for('edit_profile') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+            <!-- Имя пользователя -->
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fa-solid fa-user"></i>
+                    Имя пользователя
+                </label>
+                <div class="input-icon">
+                    <i class="fa-solid fa-user"></i>
+                    <input type="text" 
+                           name="username" 
+                           id="username"
+                           value="{{ user.username }}" 
+                           required 
+                           class="form-input"
+                           maxlength="50">
+                </div>
+                <div class="char-counter" id="username-counter">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span id="username-length">{{ user.username|length }}</span>/50
+                </div>
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fa-solid fa-envelope"></i>
+                    Email
+                </label>
+                <div class="input-icon">
+                    <i class="fa-solid fa-envelope"></i>
+                    <input type="email" 
+                           name="email" 
+                           id="email"
+                           value="{{ user.email }}" 
+                           required 
+                           class="form-input">
+                </div>
+            </div>
+
+            <!-- О себе -->
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fa-solid fa-note-sticky"></i>
+                    О себе
+                </label>
+                <textarea name="bio" 
+                          id="bio"
+                          rows="4" 
+                          class="form-input form-textarea"
+                          maxlength="500"
+                          placeholder="Расскажите немного о себе...">{{ user.bio }}</textarea>
+                <div class="char-counter" id="bio-counter">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span id="bio-length">{{ user.bio|length if user.bio else 0 }}</span>/500
+                </div>
+            </div>
+
+            <!-- Кнопки -->
+            <div class="button-group">
+                <button type="submit" class="btn-save" id="save-btn">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    Сохранить изменения
+                </button>
+                <a href="{{ url_for('profile', user_id=user.id) }}" class="btn-cancel">
+                    <i class="fa-solid fa-xmark"></i>
+                    Отмена
+                </a>
+            </div>
+        </form>
+
+        <!-- Информация о безопасности -->
+        <div style="margin-top: 30px; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 16px; border: 1px solid var(--glass-border);">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                <i class="fa-solid fa-shield-haltered" style="color: var(--accent-color);"></i>
+                <span style="font-weight: 600; color: var(--text-main);">Советы по безопасности</span>
+            </div>
+            <ul style="margin: 0; padding-left: 20px; color: var(--text-muted); font-size: 0.85rem;">
+                <li>Email будет использоваться для входа и уведомлений</li>
+                <li>Информация о себе будет видна другим пользователям</li>
+                <li>Для смены пароля обратитесь к администратору</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+// Счетчики символов
+const usernameInput = document.getElementById('username');
+const usernameLength = document.getElementById('username-length');
+const bioInput = document.getElementById('bio');
+const bioLength = document.getElementById('bio-length');
+const saveBtn = document.getElementById('save-btn');
+let originalUsername = usernameInput.value;
+let originalEmail = document.getElementById('email').value;
+let originalBio = bioInput.value;
+
+// Обновление счетчика имени
+function updateUsernameCounter() {
+    const length = usernameInput.value.length;
+    usernameLength.textContent = length;
+    const counter = document.getElementById('username-counter');
+    if (length > 45) {
+        counter.classList.add('warning');
+    } else {
+        counter.classList.remove('warning');
+    }
+}
+
+// Обновление счетчика биографии
+function updateBioCounter() {
+    const length = bioInput.value.length;
+    bioLength.textContent = length;
+    const counter = document.getElementById('bio-counter');
+    if (length > 450) {
+        counter.classList.add('warning');
+    } else {
+        counter.classList.remove('warning');
+    }
+}
+
+// Валидация email
+function validateEmail() {
+    const email = document.getElementById('email').value;
+    const pattern = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+    if (!pattern.test(email)) {
+        document.getElementById('email').style.borderColor = 'var(--error)';
+        return false;
+    }
+    document.getElementById('email').style.borderColor = 'var(--glass-border)';
+    return true;
+}
+
+// Проверка изменений
+function hasChanges() {
+    const currentUsername = usernameInput.value;
+    const currentEmail = document.getElementById('email').value;
+    const currentBio = bioInput.value;
+    return currentUsername !== originalUsername || 
+           currentEmail !== originalEmail || 
+           currentBio !== originalBio;
+}
+
+// Показ уведомления
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = 'success-message';
+    notification.innerHTML = `<i class="fa-solid fa-${type === 'success' ? 'circle-check' : 'circle-xmark'}"></i> ${message}`;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Подтверждение перед отправкой
+document.getElementById('edit-profile-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!validateEmail()) {
+        showNotification('Пожалуйста, введите корректный email', 'error');
+        return;
+    }
+    
+    if (!hasChanges()) {
+        showNotification('Изменения не обнаружены', 'error');
+        return;
+    }
+    
+    // Создаем модальное окно подтверждения
+    const confirmModal = document.createElement('div');
+    confirmModal.className = 'confirm-changes';
+    confirmModal.innerHTML = `
+        <div class="confirm-card">
+            <h4>✏️ Подтверждение</h4>
+            <p>Вы уверены, что хотите сохранить изменения?</p>
+            <div class="confirm-buttons">
+                <button class="confirm-btn confirm-yes" id="confirm-yes">Да, сохранить</button>
+                <button class="confirm-btn confirm-no" id="confirm-no">Отмена</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(confirmModal);
+    
+    document.getElementById('confirm-yes').onclick = function() {
+        confirmModal.remove();
+        submitForm();
+    };
+    
+    document.getElementById('confirm-no').onclick = function() {
+        confirmModal.remove();
+    };
+});
+
+function submitForm() {
+    // Показываем индикатор загрузки
+    saveBtn.classList.add('loading');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Сохранение...';
+    
+    // Отправляем форму
+    const form = document.getElementById('edit-profile-form');
+    const formData = new FormData(form);
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }).then(response => {
+        if (response.redirected) {
+            window.location.href = response.url;
+        } else if (response.ok) {
+            showNotification('Профиль успешно обновлен!', 'success');
+            setTimeout(() => {
+                window.location.href = "{{ url_for('profile', user_id=user.id) }}";
+            }, 1000);
+        } else {
+            return response.json().then(data => {
+                throw new Error(data.message || 'Ошибка при сохранении');
+            });
+        }
+    }).catch(error => {
+        showNotification(error.message, 'error');
+        saveBtn.classList.remove('loading');
+        saveBtn.innerHTML = originalText;
+    });
+}
+
+// Live-обновление счетчиков
+usernameInput.addEventListener('input', updateUsernameCounter);
+bioInput.addEventListener('input', updateBioCounter);
+document.getElementById('email').addEventListener('input', validateEmail);
+
+// Инициализация счетчиков
+updateUsernameCounter();
+updateBioCounter();
+
+// Предупреждение при попытке уйти без сохранения
+let formChanged = false;
+
+function markAsChanged() {
+    if (!formChanged && hasChanges()) {
+        formChanged = true;
+        window.addEventListener('beforeunload', function(e) {
+            if (hasChanges()) {
+                e.preventDefault();
+                e.returnValue = 'У вас есть несохраненные изменения. Вы уверены, что хотите уйти?';
+                return e.returnValue;
+            }
+        });
+    }
+}
+
+usernameInput.addEventListener('input', markAsChanged);
+document.getElementById('email').addEventListener('input', markAsChanged);
+bioInput.addEventListener('input', markAsChanged);
+
+// Автосохранение в localStorage
+function autoSave() {
+    const autoSaveData = {
+        username: usernameInput.value,
+        email: document.getElementById('email').value,
+        bio: bioInput.value,
+        timestamp: Date.now()
+    };
+    localStorage.setItem('profile_edit_draft', JSON.stringify(autoSaveData));
+}
+
+// Восстановление автосохранения
+function loadAutoSave() {
+    const saved = localStorage.getItem('profile_edit_draft');
+    if (saved) {
+        const data = JSON.parse(saved);
+        const timeDiff = Date.now() - data.timestamp;
+        // Если прошло меньше часа
+        if (timeDiff < 3600000) {
+            if (confirm('Обнаружен черновик от ' + new Date(data.timestamp).toLocaleTimeString() + '. Восстановить?')) {
+                usernameInput.value = data.username;
+                document.getElementById('email').value = data.email;
+                bioInput.value = data.bio;
+                updateUsernameCounter();
+                updateBioCounter();
+                formChanged = true;
+                showNotification('Черновик восстановлен', 'success');
+            } else {
+                localStorage.removeItem('profile_edit_draft');
+            }
+        } else {
+            localStorage.removeItem('profile_edit_draft');
+        }
+    }
+}
+
+// Автосохранение каждые 30 секунд
+setInterval(() => {
+    if (hasChanges()) {
+        autoSave();
+        console.log('Автосохранение выполнено');
+    }
+}, 30000);
+
+// Загрузка черновика при загрузке страницы
+loadAutoSave();
+
+// Очистка черновика после успешной отправки
+window.addEventListener('beforeunload', function() {
+    if (!hasChanges()) {
+        localStorage.removeItem('profile_edit_draft');
+    }
+});
+
+// Поддержка Ctrl+Enter для сохранения
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('edit-profile-form').dispatchEvent(new Event('submit'));
+    }
+});
+
+// Анимация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    const card = document.querySelector('.edit-card');
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(20px)';
+    setTimeout(() => {
+        card.style.transition = 'all 0.5s ease';
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+    }, 100);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="access-denied">
+    <div class="access-denied-card">
+        <!-- Иконка с анимацией -->
+        <div class="access-denied-icon">
+            🔒
+            <!-- или можно использовать иконку Font Awesome -->
+            <!-- <i class="fas fa-lock"></i> -->
+        </div>
+
+        <!-- Код ошибки -->
+        <div class="access-denied-code">
+            <span>Ошибка</span> 403
+        </div>
+
+        <!-- Заголовок -->
+        <h2>
+            Доступ запрещен
+            <span>Access Denied</span>
+        </h2>
+
+        <!-- Основное сообщение -->
+        <p class="access-denied-text">
+            У вас нет прав для просмотра этой страницы. 
+            <i>Это может быть связано с ограничениями безопасности</i> 
+            или недостаточным уровнем доступа.
+        </p>
+
+        <!-- Дополнительная информация -->
+        <div class="access-denied-info">
+            <div class="info-item">
+                <i class="fas fa-user-shield"></i>
+                <span>Ваша роль: <strong>Пользователь</strong></span>
+            </div>
+            <div class="info-item">
+                <i class="fas fa-globe"></i>
+                <span>Требуется: <strong>Администратор</strong></span>
+            </div>
+        </div>
+
+        <!-- Мета-информация (IP, время) -->
+        <div class="access-denied-meta">
+            <i class="fas fa-network-wired"></i>
+            IP: 192.168.1.100
+            <i class="fas fa-clock"></i>
+            <!-- Таймер с авто-обновлением (опционально) -->
+            <span class="countdown">15</span>с
+        </div>
+
+        <!-- Кнопки действий -->
+        <div class="access-denied-actions">
+            <a href="/" class="access-denied-btn primary">
+                <i class="fas fa-home"></i>
+                На главную
+            </a>
+            <a href="javascript:history.back()" class="access-denied-btn secondary">
+                <i class="fas fa-arrow-left"></i>
+                Назад
+            </a>
+            <a href="/admin/login" class="access-denied-btn admin">
+                <i class="fas fa-crown"></i>
+                Войти как admin
+            </a>
+        </div>
+
+        <!-- Ссылка на поддержку -->
+        <div class="access-denied-help">
+            Считаете, что это ошибка? 
+            <a href="/support">Свяжитесь с поддержкой</a>
+        </div>
+    </div>
+</div>
+{%endblock%}

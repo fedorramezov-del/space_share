@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Главная {% endblock %}
+
+{% block content %}
+<!-- Прогресс бар загрузки -->
+<div id="uploadProgress" class="upload-progress"></div>
+
+<div class="container">
+    <!-- Приветствие и кнопка загрузки -->
+    <div class="page-header">
+        <div class="greeting">
+            <h1>Добро пожаловать{% if current_user.is_authenticated %}, {{ current_user.username }}{% endif %}!</h1>
+            <p>
+                <i class="fa-solid fa-calendar"></i> 
+                {{ now|localtime }}
+            </p>
+        </div>
+    
+    </div>
+
+    <!-- Заголовок раздела -->
+    <div class="section-header">
+        <h2>
+            <i class="fa-solid fa-clock"></i> 
+            Последние загрузки
+        </h2>
+        
+        <button onclick="refreshPage()" class="refresh-btn" title="Обновить">
+            <i class="fa-solid fa-rotate"></i>
+        </button>
+    </div>
+  
+    <div class="batch-list">
+        {% for group in grouped_files %}
+            {% set first_file = group[0] %}
+            {% set is_batch = first_file.batch_id is not none %}
+            {% set count = group|length %}
+            
+            <div class="file-batch">
+                
+                <!-- Заголовок пакета -->
+                <div class="batch-header">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <div class="batch-badge">
+                            <i class="fa-solid fa-file"></i>
+                            Пакет: {{ count }} 
+                            {% if count == 1 %}
+                                файл
+                            {% elif count >= 2 and count <= 4 %}
+                                файла
+                            {% else %}
+                                файлов
+                            {% endif %}
+                        </div>
+                        
+                        {% if is_batch %}
+                        <span class="batch-badge" style="background: var(--success); color: #0b1120; border-color: var(--success);">
+                            <i class="fa-solid fa-star"></i> Групповой
+                        </span>
+                        {% endif %}
+                        
+                        <!-- Кнопка удаления всего пакета (только для владельца) -->
+                        {% if first_file.user_id == current_user.id and count > 1 %}
+                        <button onclick="showDeleteBatchModal('{{ first_file.batch_id }}', {{ count }})" 
+                                class="batch-badge" 
+                                style="background: var(--error); color: black; border-color: var(--error); cursor: pointer;">
+                            <i class="fa-solid fa-trash-can"></i> Удалить пакет
+                        </button>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="batch-meta">
+                        <span>
+                            <i class="fa-solid fa-calendar"></i>
+                            {{ first_file.upload_time | localtime }}
+                        </span>
+                        
+                        <span>
+                            <i class="fa-solid fa-user"></i>
+                            <a href="{{ url_for('profile', user_id=first_file.user.id) }}" class="user-link">
+                                {{ first_file.user.username }}
+                            </a>
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Модальное окно подтверждения удаления пакета -->
+                <div id="deleteBatchModal" class="custom-modal">
+                    <div class="modal-content">
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                            <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(239, 68, 68, 0.1); display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid fa-layer-group" style="color: var(--error); font-size: 1.5rem;"></i>
+                            </div>
+                            <div>
+                                <h4 style="margin: 0;">Удаление пакета</h4>
+                                <p style="color: var(--text-muted); margin: 5px 0 0 0;">Это действие нельзя отменить</p>
+                            </div>
+                        </div>
+                        
+                        <p id="deleteBatchMessage" style="margin-bottom: 25px;">Вы уверены, что хотите удалить этот пакет?</p>
+                        
+                        <form id="deleteBatchForm" method="POST" style="display: none;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="batch_id" id="batchIdToDelete">
+                        </form>
+                        
+                        <div class="modal-buttons">
+                            <button class="modal-btn" onclick="closeDeleteBatchModal()">
+                                <i class="fa-solid fa-times"></i> Отмена
+                            </button>
+                            <button class="modal-btn delete" onclick="confirmDeleteBatch()">
+                                <i class="fa-solid fa-trash-can"></i> Удалить пакет
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Список файлов -->
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    {% for f in group %}
+                        {% set ext = f.filename.split('.')[-1].lower() if '.' in f.filename else 'file' %}
+                        {% set display_name = f.filename.rsplit('.', 1)[0] %}
+                        
+                        {# Форматирование размера файла #}
+                        {% if f.file_size %}
+                            {% if f.file_size >= 1024 * 1024 %}
+                                {% set file_size_formatted = (f.file_size / 1024 / 1024)|round(2) ~ ' MB' %}
+                            {% elif f.file_size >= 1024 %}
+                                {% set file_size_formatted = (f.file_size / 1024)|round(1) ~ ' KB' %}
+                            {% else %}
+                                {% set file_size_formatted = f.file_size ~ ' B' %}
+                            {% endif %}
+                        {% else %}
+                            {% set file_size_formatted = '0 B' %}
+                        {% endif %}
+                        
+                        <li class="file-row-item">
+                            <div class="file-info">
+                                <!-- Иконка в зависимости от типа -->
+                                <div class="file-icon">
+                                    {% if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] %}
+                                        <i class="fa-solid fa-image"></i>
+                                    {% elif ext in ['mp4', 'webm', 'mov', 'avi', 'mkv'] %}
+                                        <i class="fa-solid fa-video"></i>
+                                    {% elif ext in ['mp3', 'wav', 'ogg', 'flac', 'aac'] %}
+                                        <i class="fa-solid fa-music"></i>
+                                    {% elif ext in ['pdf'] %}
+                                        <i class="fa-solid fa-file-pdf"></i>
+                                    {% elif ext in ['doc', 'docx'] %}
+                                        <i class="fa-solid fa-file-word"></i>
+                                    {% elif ext in ['xls', 'xlsx'] %}
+                                        <i class="fa-solid fa-file-excel"></i>
+                                    {% elif ext in ['zip', 'rar', '7z', 'tar', 'gz'] %}
+                                        <i class="fa-solid fa-file-zipper"></i>
+                                    {% elif ext in ['txt', 'py', 'js', 'css', 'html', 'json', 'xml'] %}
+                                        <i class="fa-solid fa-file-code"></i>
+                                    {% elif ext in ['stl', 'obj', 'gltf', 'glb', 'ply', 'fbx', '3mf', 'dae'] %}
+                                        <i class="fa-solid fa-cube"></i>
+                                    {% else %}
+                                        <i class="fa-solid fa-file"></i>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="file-details">
+                                    <div class="file-title" title="{{ f.filename }}">
+                                        {{ display_name }}
+                                    </div>
+                                    <div class="file-subtitle">
+                                        <span class="file-size">
+                                            <i class="fa-solid fa-hard-drive"></i>
+                                            {{ file_size_formatted }}
+                                        </span>
+                                        <span>
+                                            <i class="fa-solid fa-file"></i>
+                                            .{{ ext }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="actions">
+                                <a href="{{ url_for('view_file', file_id=f.id) }}" class="btn-action btn-view" title="Просмотр">
+                                    <i class="fa-solid fa-eye"></i>
+                                    <span class="action-text">Просмотр</span>
+                                </a>
+                                
+                                {% if f.user_id == current_user.id %}
+                                <a href="{{ url_for('share_file', file_id=f.id) }}" class="btn-action btn-view" title="Поделиться">
+                                    <i class="fa-solid fa-share-nodes"></i>
+                                    <span class="action-text">Поделиться</span>
+                                </a>
+                                {% endif %}
+
+                                <a href="{{ url_for('download_file', file_id=f.id) }}" class="btn-action btn-view" title="Скачать">
+                                    <i class="fa-solid fa-download"></i>
+                                    <span class="action-text">Скачать</span>
+                                </a>
+                                
+                                {% if f.user_id == current_user.id %} 
+                                <button onclick="showDeleteModal({{ f.id }}, '{{ f.filename }}')" 
+                                        class="btn-action btn-view" 
+                                        title="Удалить"
+                                        style="border-color: var(--error) !important; color: var(--error) !important;">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                    <span class="action-text">Удалить</span>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+                
+                <!-- Описание пакета -->
+                {% if first_file.description %}
+                <div class="batch-description" style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+                    <i class="fa-solid fa-note-sticky" style="margin-right: 8px; color: var(--accent-color);"></i>
+                    {{ first_file.description }}
+                </div>
+                {% endif %}
+            </div>
+        {% else %}
+            <!-- Пустое состояние -->
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <h3>Здесь пока пусто</h3>
+                <p>Загрузите свои первые файлы, чтобы они появились здесь</p>
+                <a href="{{ url_for('upload') }}" class="btn">
+                    <i class="fa-solid fa-upload"></i>
+                    Загрузить файлы
+                </a>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Информация внизу (только если есть файлы) -->
+    {% if grouped_files %}
+    <div class="footer-info">
+        <div class="info-text">
+            <i class="fa-solid fa-circle-info" style="color: var(--accent-color);"></i>
+            <span>Показано последние {{ grouped_files|length }} загрузок</span>
+        </div>
+        
+        <button onclick="scrollToTop()" class="scroll-top-btn" title="Наверх">
+            <i class="fa-solid fa-arrow-up"></i>
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Модальное окно подтверждения удаления -->
+<div id="deleteModal" class="custom-modal">
+    <div class="modal-content">
+        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+            <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(239, 68, 68, 0.1); display: flex; align-items: center; justify-content: center;">
+                <i class="fa-solid fa-trash-can" style="color: var(--error); font-size: 1.5rem;"></i>
+            </div>
+            <div>
+                <h4 style="margin: 0;">Удаление файла</h4>
+                <p style="color: var(--text-muted); margin: 5px 0 0 0;">Это действие нельзя отменить</p>
+            </div>
+        </div>
+        
+        <p id="deleteMessage" style="margin-bottom: 25px;">Вы уверены, что хотите удалить этот файл?</p>
+        
+        <form id="deleteForm" method="POST" style="display: none;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        </form>
+        
+        <div class="modal-buttons">
+            <button class="modal-btn" onclick="closeDeleteModal()">
+                <i class="fa-solid fa-times"></i> Отмена
+            </button>
+            <button class="modal-btn delete" onclick="confirmDelete()">
+                <i class="fa-solid fa-trash-can"></i> Удалить
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let deleteFileId = null;
+let deleteFileName = '';
+let progressInterval = null;
+
+// Показываем прогресс при переходе на страницу загрузки
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadBtn = document.querySelector('.upload-btn');
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', function(e) {
+            const progress = document.getElementById('uploadProgress');
+            progress.classList.add('active');
+            
+            let width = 0;
+            progressInterval = setInterval(() => {
+                if (width >= 90) {
+                    clearInterval(progressInterval);
+                } else {
+                    width += 10;
+                    progress.style.transform = `translateX(-${100 - width}%)`;
+                }
+            }, 100);
+        });
+    }
+});
+
+function showDeleteModal(fileId, fileName) {
+    deleteFileId = fileId;
+    deleteFileName = fileName;
+    document.getElementById('deleteMessage').innerHTML = `Вы уверены, что хотите удалить файл <strong>"${fileName}"</strong>? Это действие нельзя отменить.`;
+    document.getElementById('deleteModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+    document.body.style.overflow = '';
+    deleteFileId = null;
+    deleteFileName = '';
+}
+
+function confirmDelete() {
+    if (deleteFileId) {
+        const form = document.getElementById('deleteForm');
+        form.action = "{{ url_for('delete_file', file_id=0) }}".replace('0', deleteFileId);
+        form.submit();
+    }
+}
+
+function refreshPage() {
+    // Анимация кнопки обновления
+    const btn = document.querySelector('.refresh-btn i');
+    btn.style.transform = 'rotate(360deg)';
+    setTimeout(() => {
+        location.reload();
+    }, 300);
+}
+
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Закрытие модального окна по клику вне
+window.onclick = function(event) {
+    if (event.target.classList.contains('custom-modal')) {
+        closeDeleteModal();
+    }
+};
+
+// Закрытие по Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeDeleteModal();
+    }
+});
+
+// Останавливаем прогресс при загрузке страницы
+window.addEventListener('load', function() {
+    if (progressInterval) {
+        clearInterval(progressInterval);
+    }
+    document.getElementById('uploadProgress').classList.remove('active');
+});
+let deleteBatchId = null;
+let deleteBatchCount = 0;
+
+// Показать модальное окно удаления пакета
+function showDeleteBatchModal(batchId, fileCount) {
+    deleteBatchId = batchId;
+    deleteBatchCount = fileCount;
+    const message = document.getElementById('deleteBatchMessage');
+    
+    if (fileCount === 1) {
+        message.innerHTML = `Вы уверены, что хотите удалить этот пакет?<br><strong>В пакете 1 файл.</strong> Это действие нельзя отменить.`;
+    } else if (fileCount >= 2 && fileCount <= 4) {
+        message.innerHTML = `Вы уверены, что хотите удалить этот пакет?<br><strong>В пакете ${fileCount} файла.</strong> Это действие нельзя отменить.`;
+    } else {
+        message.innerHTML = `Вы уверены, что хотите удалить этот пакет?<br><strong>В пакете ${fileCount} файлов.</strong> Это действие нельзя отменить.`;
+    }
+    
+    document.getElementById('deleteBatchModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+// Закрыть модальное окно удаления пакета
+function closeDeleteBatchModal() {
+    document.getElementById('deleteBatchModal').style.display = 'none';
+    document.body.style.overflow = '';
+    deleteBatchId = null;
+    deleteBatchCount = 0;
+}
+
+// Подтвердить удаление пакета
+function confirmDeleteBatch() {
+    if (deleteBatchId) {
+        const form = document.getElementById('deleteBatchForm');
+        const batchIdInput = document.getElementById('batchIdToDelete');
+        batchIdInput.value = deleteBatchId;
+        form.action = "{{ url_for('delete_batch') }}";
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

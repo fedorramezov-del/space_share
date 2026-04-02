@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Включение 2FA {% endblock %}
+
+
+
+{% block content %}
+<div class="twofa-container">
+    <div class="twofa-card">
+        <!-- Заголовок -->
+        <div class="twofa-header">
+            <div class="twofa-icon">
+                <i class="fa-solid fa-shield"></i>
+            </div>
+            <div class="twofa-title">
+                <h2>Двухфакторная аутентификация</h2>
+                <p>Включите дополнительную защиту аккаунта</p>
+            </div>
+        </div>
+
+        <!-- Шаги -->
+        <div class="steps">
+            <div class="step active">
+                <div class="step-number">1</div>
+                <div class="step-text">Сканируйте QR</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-text">Введите код</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-text">Подтвердите</div>
+            </div>
+        </div>
+
+        <!-- QR код -->
+        <div class="qr-section">
+            <div class="qr-label">
+                <i class="fa-solid fa-qrcode"></i>
+                QR-код для сканирования
+            </div>
+            
+            <div class="qr-code">
+                <img src="data:image/png;base64,{{ qr_code }}" alt="2FA QR Code">
+            </div>
+            
+            <div class="qr-hint">
+                <i class="fa-solid fa-circle-info"></i>
+                Отсканируйте в Google Authenticator или аналогичном приложении
+            </div>
+        </div>
+
+        <!-- Секретный ключ (опционально) -->
+        {% if secret_key %}
+        <div class="secret-key">
+            <span>{{ secret_key }}</span>
+            <button class="copy-btn" onclick="copySecretKey()" title="Копировать ключ">
+                <i class="fa-solid fa-copy"></i>
+            </button>
+        </div>
+        {% endif %}
+
+        <!-- Форма подтверждения -->
+        <div class="form-section">
+            <form method="POST" action="{{ url_for('confirm_2fa') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="input-group">
+                    <label>
+                        <i class="fa-solid fa-key"></i>
+                        Введите код из приложения
+                    </label>
+                    <div class="code-input">
+                        <input type="text" 
+                               name="code" 
+                               required 
+                               placeholder="000000"
+                               maxlength="6"
+                               pattern="[0-9]{6}"
+                               inputmode="numeric"
+                               autocomplete="off">
+                    </div>
+                </div>
+                
+                <button type="submit" class="verify-btn">
+                    <i class="fa-solid fa-circle-check"></i>
+                    Подтвердить и включить
+                </button>
+            </form>
+        </div>
+        
+        <!-- Предупреждение -->
+        <div style="margin-top: 25px; padding: 15px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px;">
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <i class="fa-solid fa-triangle-exclamation" style="color: var(--error); font-size: 1.2rem;"></i>
+                <div style="color: var(--text-muted); font-size: 0.85rem;">
+                    <strong style="color: var(--error); display: block; margin-bottom: 5px;">Важно!</strong>
+                    Сохраните резервные коды в надежном месте. При потере доступа к приложению вы не сможете войти в аккаунт.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copySecretKey() {
+    const secretKey = document.querySelector('.secret-key span').textContent;
+    navigator.clipboard.writeText(secretKey).then(() => {
+        showNotification('Секретный ключ скопирован');
+    }).catch(err => {
+        console.error('Ошибка копирования:', err);
+    });
+}
+
+function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: var(--success);
+        color: #0b1120;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+    `;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
+}
+</script>
+{% endblock %}

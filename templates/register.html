@@ -1,0 +1,342 @@
+{% extends 'base.html' %}
+
+{% block title %}Регистрация{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card" style="max-width: 500px; animation: slideIn 0.5s ease;">
+        <!-- Декоративный элемент сверху -->
+        <div style="
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--success), var(--accent-color));
+            border-radius: 12px 12px 0 0;
+        "></div>
+
+        <!-- Иконка и заголовок -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 20px;
+                background: linear-gradient(135deg, var(--success), var(--accent-color));
+                border-radius: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 2.5rem;
+                color: #0b1120;
+                box-shadow: 0 10px 25px rgba(var(--success-rgb), 0.3);
+                animation: pulse 2s ease infinite;
+            ">
+                <i class="fa-solid fa-user-plus"></i>
+            </div>
+            <h2 style="margin: 0; font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, var(--success), var(--accent-color)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                Создать аккаунт
+            </h2>
+            <p style="color: var(--text-muted); margin-top: 8px;">Присоединяйтесь к сообществу</p>
+        </div>
+
+        <!-- Форма регистрации -->
+        <form method="POST" action="{{ url_for('register') }}" style="margin-bottom: 20px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+            <!-- Имя пользователя -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; font-weight: 500;">
+                    <i class="fa-regular fa-user" style="margin-right: 5px;"></i>
+                    Имя пользователя
+                </label>
+                <div style="position: relative; display: flex; align-items: center;">
+                    <input type="text" 
+                        name="username" 
+                        id="username"
+                        placeholder="Введите имя пользователя" 
+                        required
+                        minlength="3"
+                        maxlength="50"
+                        style="
+                            width: 100%;
+                            padding: 14px 14px 14px 40px;
+                            border: 2px solid var(--glass-border);
+                            border-radius: 12px;
+                            background: rgba(255,255,255,0.03);
+                            color: var(--text-main);
+                            font-size: 1rem;
+                            transition: all 0.3s ease;
+                            line-height: 1.2;
+                            height: auto;
+                            box-sizing: border-box;
+                        "
+                        onfocus="this.style.borderColor='var(--success)'; this.style.boxShadow='0 0 0 3px rgba(var(--success-rgb), 0.2)'"
+                        onblur="this.style.borderColor='var(--glass-border)'; this.style.boxShadow='none'">
+                </div>
+                <div style="margin-top: 5px; font-size: 0.8rem; color: var(--text-muted);">
+                    <i class="fa-regular fa-circle-check" style="margin-right: 3px;"></i>
+                    Минимум 3 символа (можно использовать буквы, цифры, пробелы и любые символы)
+                </div>
+            </div>
+
+            <!-- Email -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; font-weight: 500;">
+                    <i class="fa-regular fa-envelope" style="margin-right: 5px;"></i>
+                    Email
+                </label>
+                <div style="position: relative; display: flex; align-items: center;">
+                    <input type="email" 
+                        name="email" 
+                        placeholder="example@mail.com" 
+                        required
+                        style="
+                            width: 100%;
+                            padding: 14px 14px 14px 40px;
+                            border: 2px solid var(--glass-border);
+                            border-radius: 12px;
+                            background: rgba(255,255,255,0.03);
+                            color: var(--text-main);
+                            font-size: 1rem;
+                            transition: all 0.3s ease;
+                            line-height: 1.2;
+                            height: auto;
+                            box-sizing: border-box;
+                        "
+                        onfocus="this.style.borderColor='var(--success)'; this.style.boxShadow='0 0 0 3px rgba(var(--success-rgb), 0.2)'"
+                        onblur="this.style.borderColor='var(--glass-border)'; this.style.boxShadow='none'">
+                </div>
+            </div>
+
+            <!-- Пароль -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; font-weight: 500;">
+                    <i class="fa-solid fa-lock" style="margin-right: 5px;"></i>
+                    Пароль
+                </label>
+                <div style="position: relative; display: flex; align-items: center;">
+                    <input type="password" 
+                        name="password" 
+                        id="password"
+                        placeholder="Минимум 6 символов" 
+                        required
+                        minlength="6"
+                        style="
+                            width: 100%;
+                            padding: 14px 14px 14px 40px;
+                            border: 2px solid var(--glass-border);
+                            border-radius: 12px;
+                            background: rgba(255,255,255,0.03);
+                            color: var(--text-main);
+                            font-size: 1rem;
+                            transition: all 0.3s ease;
+                            line-height: 1.2;
+                            height: auto;
+                            box-sizing: border-box;
+                        "
+                        onfocus="this.style.borderColor='var(--success)'; this.style.boxShadow='0 0 0 3px rgba(var(--success-rgb), 0.2)'"
+                        onblur="this.style.borderColor='var(--glass-border)'; this.style.boxShadow='none'">
+                </div>
+                <!-- Индикатор сложности пароля -->
+                <div style="margin-top: 8px;">
+                    <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                        <div id="strength-1" style="flex: 1; height: 4px; background: var(--glass-border); border-radius: 2px;"></div>
+                        <div id="strength-2" style="flex: 1; height: 4px; background: var(--glass-border); border-radius: 2px;"></div>
+                        <div id="strength-3" style="flex: 1; height: 4px; background: var(--glass-border); border-radius: 2px;"></div>
+                    </div>
+                    <span id="password-strength-text" style="font-size: 0.75rem; color: var(--text-muted);">Сложность пароля</span>
+                </div>
+            </div>
+
+            <!-- Подтверждение пароля -->
+            <div style="margin-bottom: 25px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; font-weight: 500;">
+                    <i class="fa-solid fa-lock" style="margin-right: 5px;"></i>
+                    Подтверждение пароля
+                </label>
+                <div style="position: relative; display: flex; align-items: center;">
+                    <input type="password" 
+                        id="confirm_password"
+                        placeholder="Повторите пароль" 
+                        required
+                        style="
+                            width: 100%;
+                            padding: 14px 14px 14px 40px;
+                            border: 2px solid var(--glass-border);
+                            border-radius: 12px;
+                            background: rgba(255,255,255,0.03);
+                            color: var(--text-main);
+                            font-size: 1rem;
+                            transition: all 0.3s ease;
+                            line-height: 1.2;
+                            height: auto;
+                            box-sizing: border-box;
+                        "
+                        onfocus="this.style.borderColor='var(--success)'; this.style.boxShadow='0 0 0 3px rgba(var(--success-rgb), 0.2)'"
+                        onblur="this.style.borderColor='var(--glass-border)'; this.style.boxShadow='none'">
+                </div>
+                <div id="password-match" style="margin-top: 5px; font-size: 0.8rem; color: var(--error); display: none;">
+                    <i class="fa-regular fa-circle-exclamation"></i> Пароли не совпадают
+                </div>
+            </div>
+
+            <!-- Кнопка регистрации -->
+            <button type="submit" 
+                    class="submit-btn"
+                    id="register-btn"
+                    style="
+                        width: 100%;
+                        padding: 16px;
+                        font-size: 1.1rem;
+                        margin-bottom: 20px;
+                        background: linear-gradient(135deg, var(--success), var(--accent-color));
+                    ">
+                <span style="position: relative; z-index: 1;">
+                    <i class="fa-solid fa-user-plus" style="margin-right: 8px;"></i>
+                    Создать аккаунт
+                </span>
+            </button>
+        </form>
+
+        <!-- Разделитель -->
+        <div style="display: flex; align-items: center; gap: 15px; margin: 25px 0;">
+            <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--glass-border), transparent);"></div>
+            <span style="color: var(--text-muted); font-size: 0.9rem;">или</span>
+            <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--glass-border), transparent);"></div>
+        </div>
+
+        <!-- Вход -->
+        <div style="text-align: center;">
+            <p style="color: var(--text-muted); margin-bottom: 15px;">Уже есть аккаунт?</p>
+            <a href="{{ url_for('login') }}" 
+               class="btn-action"
+               style="
+                   display: inline-flex;
+                   align-items: center;
+                   gap: 8px;
+                   padding: 12px 30px;
+                   background: transparent;
+                   border: 2px solid var(--accent-color);
+                   border-radius: 30px;
+                   color: var(--accent-color);
+                   font-size: 1rem;
+                   font-weight: 600;
+                   text-decoration: none;
+                   transition: all 0.3s ease;
+               "
+               onmouseover="this.style.background='var(--accent-color)'; this.style.color='#0b1120'"
+               onmouseout="this.style.background='transparent'; this.style.color='var(--accent-color)'">
+                <i class="fa-solid fa-right-to-bracket"></i>
+                Войти
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript для валидации -->
+<script>
+// Проверка сложности пароля
+document.getElementById('password').addEventListener('input', function() {
+    const password = this.value;
+    const strengthBars = [
+        document.getElementById('strength-1'),
+        document.getElementById('strength-2'),
+        document.getElementById('strength-3')
+    ];
+    const strengthText = document.getElementById('password-strength-text');
+    
+    // Сброс
+    strengthBars.forEach(bar => {
+        bar.style.background = 'var(--glass-border)';
+    });
+    
+    if (password.length === 0) {
+        strengthText.textContent = 'Сложность пароля';
+        return;
+    }
+    
+    // Проверка сложности
+    let strength = 0;
+    
+    // Длина >= 6
+    if (password.length >= 6) strength += 1;
+    
+    // Содержит цифры
+    if (/\d/.test(password)) strength += 1;
+    
+    // Содержит спецсимволы или заглавные буквы
+    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) || /[A-Z]/.test(password)) strength += 1;
+    
+    // Обновление баров
+    for (let i = 0; i < strength; i++) {
+        if (strength === 1) {
+            strengthBars[i].style.background = 'var(--error)';
+            strengthText.textContent = 'Слабый';
+        } else if (strength === 2) {
+            strengthBars[i].style.background = 'var(--accent-color)';
+            strengthText.textContent = 'Средний';
+        } else if (strength === 3) {
+            strengthBars[i].style.background = 'var(--success)';
+            strengthText.textContent = 'Сильный';
+        }
+    }
+});
+
+// Проверка совпадения паролей
+function checkPasswords() {
+    const password = document.getElementById('password').value;
+    const confirm = document.getElementById('confirm_password').value;
+    const matchDiv = document.getElementById('password-match');
+    const registerBtn = document.getElementById('register-btn');
+    
+    if (confirm.length > 0) {
+        if (password === confirm) {
+            matchDiv.style.display = 'none';
+            registerBtn.disabled = false;
+        } else {
+            matchDiv.style.display = 'block';
+            registerBtn.disabled = true;
+        }
+    } else {
+        matchDiv.style.display = 'none';
+        registerBtn.disabled = true;
+    }
+}
+
+document.getElementById('password').addEventListener('input', checkPasswords);
+document.getElementById('confirm_password').addEventListener('input', checkPasswords);
+
+// Валидация имени пользователя (проверка только на пустоту и длину)
+function validateUsername() {
+    const username = document.getElementById('username');
+    const registerBtn = document.getElementById('register-btn');
+    
+    if (username.value.length >= 3) {
+        username.style.borderColor = 'var(--success)';
+    } else if (username.value.length > 0) {
+        username.style.borderColor = 'var(--error)';
+    } else {
+        username.style.borderColor = 'var(--glass-border)';
+    }
+    
+    // Дополнительно проверяем пароли
+    checkPasswords();
+}
+
+document.getElementById('username').addEventListener('input', validateUsername);
+
+// Анимация при фокусе
+document.querySelectorAll('input').forEach(input => {
+    input.addEventListener('focus', function() {
+        this.parentElement.style.transform = 'scale(1.02)';
+    });
+    input.addEventListener('blur', function() {
+        this.parentElement.style.transform = 'scale(1)';
+    });
+});
+
+// Инициализация
+validateUsername();
+</script>
+{% endblock %}

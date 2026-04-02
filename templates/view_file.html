@@ -1,0 +1,2122 @@
+{% extends "base.html" %}
+
+{% block title %}Просмотр: {{ file.filename }}{% endblock %}
+
+{% block head %}
+    {{ super() }}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="view-wrapper auth-card" style="max-width: 100%; width: auto; position: relative;">
+        <div class="view-header" style="border-bottom: 1px solid var(--glass-border); margin-bottom: 20px; padding-bottom: 15px;">
+            <h1>{{ file.filename }}</h1>
+            <div class="view-meta" style="color: var(--text-muted); font-size: 0.9em;">
+                <span>Размер: {{ (file_size /1024/ 1024)|round(2) }} MB</span> | 
+                <span>Загружен: {{ file.upload_time | localtime }} </span>
+                {% if file.user %}
+                | <span>Владелец: <a href="{{ url_for('profile', user_id=file.user.id) }}" class="user-link">{{ file.user.username }}</a></span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="file-display" style="margin: 20px 0; text-align: center;">
+            {% set ext = file.filename.lower().split('.')[-1] %}
+            
+            {# Отображение изображений #}
+            {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] %}
+                <img src="{{ url_for('download_file', file_id=file.id) }}" 
+                     style="max-width: 100%; max-height: 600px; border-radius: 8px; border: 1px solid var(--glass-border);"
+                     alt="{{ file.filename }}">
+
+            {# Отображение PDF с кастомным плеером #}
+            {% elif ext == 'pdf' %}
+            <div class="custom-pdf-viewer">
+                <div class="pdf-header">
+                    <div class="pdf-info">
+                        <div class="pdf-icon">
+                            <i class="fa-solid fa-file-pdf"></i>
+                        </div>
+                        <div class="pdf-details">
+                            <div class="pdf-name">{{ file.filename }}</div>
+                            <div class="pdf-meta">
+                                <i class="fa-regular fa-hard-drive"></i> 
+                                {% if file.file_size %}
+                                    {{ (file.file_size / 1024 / 1024)|round(2) }} MB
+                                {% endif %}
+                                <span class="separator">|</span>
+                                <i class="fa-regular fa-file-lines"></i> 
+                                <span id="pdf-page-count">Страниц: --</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="pdf-controls">
+                        <button class="pdf-btn" id="pdf-zoom-out" title="Уменьшить">
+                            <i class="fa-solid fa-magnifying-glass-minus"></i>
+                        </button>
+                        <span id="pdf-zoom-level" class="pdf-zoom-level">100%</span>
+                        <button class="pdf-btn" id="pdf-zoom-in" title="Увеличить">
+                            <i class="fa-solid fa-magnifying-glass-plus"></i>
+                        </button>
+                        
+                        <div class="pdf-nav">
+                            <button class="pdf-btn" id="pdf-prev" title="Предыдущая страница">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <input type="number" id="pdf-current-page" value="1" min="1" class="pdf-page-input">
+                            <span class="pdf-total-pages">/ <span id="pdf-total-pages">--</span></span>
+                            <button class="pdf-btn" id="pdf-next" title="Следующая страница">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        
+                        <button class="pdf-btn" id="pdf-download" title="Скачать PDF">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                        <button class="pdf-btn" id="pdf-fullscreen" title="Полный экран">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="pdf-container" id="pdf-container">
+                    <canvas id="pdf-canvas" class="pdf-canvas"></canvas>
+                    <div class="pdf-loading" id="pdf-loading">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text">Загрузка PDF...</div>
+                    </div>
+                    <div class="pdf-error" id="pdf-error" style="display: none;">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <p>Не удалось загрузить PDF документ</p>
+                        <button class="pdf-btn" id="pdf-retry">Повторить</button>
+                    </div>
+                </div>
+                
+                <div class="pdf-thumbnails" id="pdf-thumbnails" style="display: none;">
+                    <div class="thumbnails-header">
+                        <h4><i class="fa-regular fa-images"></i> Миниатюры</h4>
+                        <button class="close-thumbnails" id="close-thumbnails">
+                            <i class="fa-solid fa-times"></i>
+                        </button>
+                    </div>
+                    <div id="thumbnails-list"></div>
+                </div>
+                
+                <button class="toggle-thumbnails" id="toggle-thumbnails" title="Показать миниатюры">
+                    <i class="fa-regular fa-images"></i>
+                </button>
+            </div>
+
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+            <script>
+                (function() {
+                    // Настройка worker для pdf.js
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = "{{ url_for('static', filename='pdfjs/build/pdf.worker.js') }}";
+                    
+                    const url = "{{ url_for('get_raw_file', file_id=file.id) }}";
+                    let pdfDoc = null;
+                    let currentPage = 1;
+                    let currentZoom = 1.0;
+                    let totalPages = 0;
+                    let scale = 1.0;
+                    let canvas = document.getElementById('pdf-canvas');
+                    let ctx = canvas.getContext('2d');
+                    let loadingOverlay = document.getElementById('pdf-loading');
+                    let errorOverlay = document.getElementById('pdf-error');
+                    let container = document.getElementById('pdf-container');
+                    let thumbnailsPanel = document.getElementById('pdf-thumbnails');
+                    
+                    // Элементы управления
+                    const zoomInBtn = document.getElementById('pdf-zoom-in');
+                    const zoomOutBtn = document.getElementById('pdf-zoom-out');
+                    const zoomLevelSpan = document.getElementById('pdf-zoom-level');
+                    const prevBtn = document.getElementById('pdf-prev');
+                    const nextBtn = document.getElementById('pdf-next');
+                    const currentPageInput = document.getElementById('pdf-current-page');
+                    const totalPagesSpan = document.getElementById('pdf-total-pages');
+                    const downloadBtn = document.getElementById('pdf-download');
+                    const fullscreenBtn = document.getElementById('pdf-fullscreen');
+                    const toggleThumbnailsBtn = document.getElementById('toggle-thumbnails');
+                    const closeThumbnailsBtn = document.getElementById('close-thumbnails');
+                    const retryBtn = document.getElementById('pdf-retry');
+                    
+                    // Загрузка PDF
+                    function loadPDF() {
+                        loadingOverlay.style.display = 'flex';
+                        errorOverlay.style.display = 'none';
+                        
+                        pdfjsLib.getDocument(url).promise.then(function(pdf) {
+                            pdfDoc = pdf;
+                            totalPages = pdf.numPages;
+                            totalPagesSpan.textContent = totalPages;
+                            currentPageInput.max = totalPages;
+                            
+                            // Обновляем информацию о количестве страниц
+                            document.getElementById('pdf-page-count').textContent = `Страниц: ${totalPages}`;
+                            
+                            // Загружаем первую страницу
+                            renderPage(currentPage);
+                            generateThumbnails();
+                            loadingOverlay.style.display = 'none';
+                        }).catch(function(error) {
+                            console.error('Ошибка загрузки PDF:', error);
+                            loadingOverlay.style.display = 'none';
+                            errorOverlay.style.display = 'flex';
+                        });
+                    }
+                    
+                    // Рендер страницы
+                    function renderPage(pageNum) {
+                        if (!pdfDoc) return;
+                        
+                        pdfDoc.getPage(pageNum).then(function(page) {
+                            const viewport = page.getViewport({ scale: scale });
+                            canvas.width = viewport.width;
+                            canvas.height = viewport.height;
+                            
+                            const renderContext = {
+                                canvasContext: ctx,
+                                viewport: viewport
+                            };
+                            
+                            // Анимация загрузки страницы
+                            canvas.style.opacity = '0.5';
+                            
+                            page.render(renderContext).promise.then(function() {
+                                canvas.style.opacity = '1';
+                                currentPage = pageNum;
+                                currentPageInput.value = pageNum;
+                                
+                                // Обновляем кнопки навигации
+                                prevBtn.disabled = currentPage === 1;
+                                nextBtn.disabled = currentPage === totalPages;
+                                
+                                // Обновляем активную миниатюру
+                                highlightActiveThumbnail(pageNum);
+                            });
+                        }).catch(function(error) {
+                            console.error('Ошибка рендера страницы:', error);
+                        });
+                    }
+                    
+                    // Изменение масштаба
+                    function updateZoom() {
+                        if (!pdfDoc) return;
+                        const percent = Math.round(scale * 100);
+                        zoomLevelSpan.textContent = `${percent}%`;
+                        renderPage(currentPage);
+                    }
+                    
+                    function zoomIn() {
+                        scale = Math.min(scale + 0.25, 3.0);
+                        updateZoom();
+                    }
+                    
+                    function zoomOut() {
+                        scale = Math.max(scale - 0.25, 0.5);
+                        updateZoom();
+                    }
+                    
+                    // Генерация миниатюр
+                    async function generateThumbnails() {
+                        const thumbnailsList = document.getElementById('thumbnails-list');
+                        thumbnailsList.innerHTML = '';
+                        
+                        for (let i = 1; i <= totalPages; i++) {
+                            const page = await pdfDoc.getPage(i);
+                            const viewport = page.getViewport({ scale: 0.2 });
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            
+                            canvas.width = viewport.width;
+                            canvas.height = viewport.height;
+                            
+                            await page.render({
+                                canvasContext: ctx,
+                                viewport: viewport
+                            }).promise;
+                            
+                            const thumbnailDiv = document.createElement('div');
+                            thumbnailDiv.className = 'thumbnail-item' + (i === currentPage ? ' active' : '');
+                            thumbnailDiv.onclick = (function(pageNum) {
+                                return function() {
+                                    currentPage = pageNum;
+                                    renderPage(currentPage);
+                                    highlightActiveThumbnail(pageNum);
+                                    if (window.innerWidth <= 768) {
+                                        thumbnailsPanel.style.display = 'none';
+                                    }
+                                };
+                            })(i);
+                            
+                            const canvasClone = canvas.cloneNode(true);
+                            const pageNumSpan = document.createElement('span');
+                            pageNumSpan.className = 'thumbnail-page-num';
+                            pageNumSpan.textContent = i;
+                            
+                            thumbnailDiv.appendChild(canvasClone);
+                            thumbnailDiv.appendChild(pageNumSpan);
+                            thumbnailsList.appendChild(thumbnailDiv);
+                        }
+                    }
+                    
+                    function highlightActiveThumbnail(pageNum) {
+                        const thumbnails = document.querySelectorAll('.thumbnail-item');
+                        thumbnails.forEach((thumb, index) => {
+                            if (index + 1 === pageNum) {
+                                thumb.classList.add('active');
+                            } else {
+                                thumb.classList.remove('active');
+                            }
+                        });
+                    }
+                    
+                    // Навигация
+                    function nextPage() {
+                        if (currentPage < totalPages) {
+                            currentPage++;
+                            renderPage(currentPage);
+                            highlightActiveThumbnail(currentPage);
+                        }
+                    }
+                    
+                    function prevPage() {
+                        if (currentPage > 1) {
+                            currentPage--;
+                            renderPage(currentPage);
+                            highlightActiveThumbnail(currentPage);
+                        }
+                    }
+                    
+                    function goToPage() {
+                        let page = parseInt(currentPageInput.value);
+                        if (isNaN(page)) page = 1;
+                        page = Math.min(Math.max(page, 1), totalPages);
+                        if (page !== currentPage) {
+                            currentPage = page;
+                            renderPage(currentPage);
+                            highlightActiveThumbnail(currentPage);
+                        }
+                    }
+                    
+                    // Полноэкранный режим
+                    function toggleFullscreen() {
+                        const viewer = document.querySelector('.custom-pdf-viewer');
+                        if (!document.fullscreenElement) {
+                            viewer.requestFullscreen();
+                            fullscreenBtn.innerHTML = '<i class="fa-solid fa-compress"></i>';
+                        } else {
+                            document.exitFullscreen();
+                            fullscreenBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                        }
+                    }
+                    
+                    document.addEventListener('fullscreenchange', () => {
+                        if (document.fullscreenElement) {
+                            fullscreenBtn.innerHTML = '<i class="fa-solid fa-compress"></i>';
+                        } else {
+                            fullscreenBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                        }
+                    });
+                    
+                    // Скачивание PDF
+                    function downloadPDF() {
+                        window.location.href = "{{ url_for('download_file', file_id=file.id) }}";
+                    }
+                    
+                    // Показать/скрыть миниатюры
+                    function toggleThumbnails() {
+                        if (thumbnailsPanel.style.display === 'none' || thumbnailsPanel.style.display === '') {
+                            thumbnailsPanel.style.display = 'flex';
+                            // Анимация появления
+                            thumbnailsPanel.style.animation = 'slideIn 0.3s ease';
+                        } else {
+                            thumbnailsPanel.style.display = 'none';
+                        }
+                    }
+                    
+                    // Закрыть миниатюры
+                    function closeThumbnails() {
+                        thumbnailsPanel.style.display = 'none';
+                    }
+                    
+                    // Поддержка клавиатуры
+                    document.addEventListener('keydown', (e) => {
+                        if (document.activeElement !== currentPageInput) {
+                            if (e.key === 'ArrowLeft') {
+                                prevPage();
+                                e.preventDefault();
+                            } else if (e.key === 'ArrowRight') {
+                                nextPage();
+                                e.preventDefault();
+                            } else if (e.key === '+' || e.key === '=') {
+                                zoomIn();
+                                e.preventDefault();
+                            } else if (e.key === '-' || e.key === '_') {
+                                zoomOut();
+                                e.preventDefault();
+                            } else if (e.key === 'f' || e.key === 'F') {
+                                toggleFullscreen();
+                                e.preventDefault();
+                            } else if (e.key === 'Escape' && thumbnailsPanel.style.display === 'flex') {
+                                closeThumbnails();
+                            }
+                        }
+                    });
+                    
+                    // Поддержка колесика мыши для зума
+                    container.addEventListener('wheel', (e) => {
+                        if (e.ctrlKey) {
+                            e.preventDefault();
+                            if (e.deltaY < 0) {
+                                zoomIn();
+                            } else {
+                                zoomOut();
+                            }
+                        }
+                    });
+                    
+                    // Обработчики событий
+                    zoomInBtn.addEventListener('click', zoomIn);
+                    zoomOutBtn.addEventListener('click', zoomOut);
+                    prevBtn.addEventListener('click', prevPage);
+                    nextBtn.addEventListener('click', nextPage);
+                    currentPageInput.addEventListener('change', goToPage);
+                    downloadBtn.addEventListener('click', downloadPDF);
+                    fullscreenBtn.addEventListener('click', toggleFullscreen);
+                    toggleThumbnailsBtn.addEventListener('click', toggleThumbnails);
+                    closeThumbnailsBtn.addEventListener('click', closeThumbnails);
+                    retryBtn.addEventListener('click', loadPDF);
+                    
+                    // Загрузка PDF
+                    loadPDF();
+                    
+                    // Адаптация при изменении размера окна
+                    window.addEventListener('resize', () => {
+                        if (pdfDoc) {
+                            renderPage(currentPage);
+                        }
+                    });
+                })();
+            </script>
+
+            {# Отображение текста #}
+            {% elif ext in ['txt', 'py', 'js', 'css', 'html', 'json', 'xml', 'md', 'ini', 'cfg', 'log', 'csv'] %}
+                <pre style="text-align: left; background: #0f172a; padding: 20px; border-radius: 8px; overflow-x: auto; border: 1px solid var(--glass-border); color: var(--accent-color); font-family: 'Consolas', monospace;"><code>{{ content }}</code></pre>
+
+            {# Отображение DOCX #}
+            {% elif ext in ['docx', 'doc'] %}
+                <div class="docx-viewer" style="text-align: left; background: #0f172a; padding: 20px; border-radius: 8px; border: 1px solid var(--glass-border);">
+                    {% if content %}
+                        <div style="color: var(--text-main); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; white-space: pre-wrap;">
+                            {{ content|linebreaksbr }}
+                        </div>
+                    {% else %}
+                        <div style="color: var(--text-muted); text-align: center; padding: 40px;">
+                            <i class="fa-regular fa-file-word" style="font-size: 4rem; margin-bottom: 15px; color: var(--accent-color);"></i>
+                            <p>Не удалось загрузить содержимое документа</p>
+                        </div>
+                    {% endif %}
+                </div>
+                
+            {# 3D МОДЕЛИ #}
+            {% elif ext in ['stl', 'obj', 'gltf', 'glb', 'ply', 'fbx', '3mf', 'dae'] %}
+                <div class="model-viewer-container">
+                    <canvas id="model-canvas"></canvas>
+                    
+                    <!-- Панель управления текстурами (левая) - сворачиваемая -->
+                    <div class="texture-panel" style="
+                        position: absolute;
+                        top: 20px;
+                        left: 20px;
+                        background: rgba(0,0,0,0.7);
+                        backdrop-filter: blur(10px);
+                        border-radius: 12px;
+                        z-index: 10;
+                        min-width: 220px;
+                        max-width: 280px;
+                        border: 1px solid var(--glass-border);
+                        overflow: hidden;
+                        transition: all 0.3s ease;
+                    ">
+                        <div class="panel-header" style="
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            padding: 12px 15px;
+                            cursor: pointer;
+                            background: rgba(0,0,0,0.3);
+                            border-bottom: 1px solid var(--glass-border);
+                        " onclick="togglePanel('texture-panel-content')">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <i class="fa-solid fa-palette" style="color: var(--accent-color);"></i>
+                                <strong style="color: var(--text-main);">Текстуры</strong>
+                                <span id="textures-count" style="background: var(--accent-dark); padding: 2px 8px; border-radius: 12px; font-size: 10px;">0</span>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" id="texture-panel-icon" style="transition: transform 0.3s ease;"></i>
+                        </div>
+                        <div id="texture-panel-content" style="padding: 15px; transition: all 0.3s ease;">
+                            <div id="textures-list" style="max-height: 250px; overflow-y: auto; margin-bottom: 12px;">
+                                <div style="text-align: center; color: var(--text-muted); padding: 15px;">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> Загрузка...
+                                </div>
+                            </div>
+                            
+                            <!-- Форма загрузки текстуры -->
+                            <form action="{{ url_for('upload_texture', model_id=file.id) }}" method="post" enctype="multipart/form-data" style="border-top: 1px solid var(--glass-border); padding-top: 12px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <div style="margin-bottom: 8px;">
+                                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Тип текстуры:</label>
+                                    <select name="texture_type" style="
+                                        width: 100%;
+                                        padding: 6px 8px;
+                                        background: rgba(0,0,0,0.5);
+                                        border: 1px solid var(--glass-border);
+                                        border-radius: 6px;
+                                        color: var(--text-main);
+                                        font-size: 11px;
+                                    ">
+                                        <option value="diffuse">🎨 Диффузная (цвет)</option>
+                                        <option value="normal">🔷 Нормаль-карта</option>
+                                        <option value="specular">✨ Спекулярная</option>
+                                        <option value="roughness">📊 Шероховатость</option>
+                                        <option value="ao">🌑 Окклюзия (AO)</option>
+                                    </select>
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <input type="file" name="texture" accept="image/jpeg,image/png,image/bmp,image/webp" style="
+                                        width: 100%;
+                                        padding: 4px;
+                                        background: rgba(0,0,0,0.5);
+                                        border: 1px solid var(--glass-border);
+                                        border-radius: 6px;
+                                        color: var(--text-main);
+                                        font-size: 11px;
+                                    ">
+                                </div>
+                                <button type="submit" style="
+                                    width: 100%;
+                                    padding: 8px;
+                                    background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+                                    border: none;
+                                    border-radius: 6px;
+                                    color: #0b1120;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    transition: all 0.2s ease;
+                                ">
+                                    <i class="fa-solid fa-upload"></i> Загрузить текстуру
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Панель управления MTL (правая) - сворачиваемая -->
+                    <div class="mtl-panel" style="
+                        position: absolute;
+                        top: 20px;
+                        right: 20px;
+                        background: rgba(0,0,0,0.7);
+                        backdrop-filter: blur(10px);
+                        border-radius: 12px;
+                        z-index: 10;
+                        min-width: 220px;
+                        max-width: 280px;
+                        border: 1px solid var(--glass-border);
+                        overflow: hidden;
+                        transition: all 0.3s ease;
+                    ">
+                        <div class="panel-header" style="
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            padding: 12px 15px;
+                            cursor: pointer;
+                            background: rgba(0,0,0,0.3);
+                            border-bottom: 1px solid var(--glass-border);
+                        " onclick="togglePanel('mtl-panel-content')">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <i class="fa-solid fa-cube" style="color: var(--accent-color);"></i>
+                                <strong style="color: var(--text-main);">Материалы (MTL)</strong>
+                                <span id="materials-count" style="background: var(--accent-dark); padding: 2px 8px; border-radius: 12px; font-size: 10px;">0</span>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" id="mtl-panel-icon" style="transition: transform 0.3s ease;"></i>
+                        </div>
+                        <div id="mtl-panel-content" style="padding: 15px; transition: all 0.3s ease;">
+                            <div id="materials-list" style="max-height: 250px; overflow-y: auto; margin-bottom: 12px;">
+                                <div style="text-align: center; color: var(--text-muted); padding: 15px;">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> Загрузка...
+                                </div>
+                            </div>
+                            
+                            <!-- Форма загрузки MTL (только для OBJ) -->
+                            {% if ext == 'obj' %}
+                            <form action="{{ url_for('upload_mtl', model_id=file.id) }}" method="post" enctype="multipart/form-data" style="border-top: 1px solid var(--glass-border); padding-top: 12px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <div style="margin-bottom: 8px;">
+                                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">MTL файл материалов:</label>
+                                    <input type="file" name="mtl_file" accept=".mtl" style="
+                                        width: 100%;
+                                        padding: 4px;
+                                        background: rgba(0,0,0,0.5);
+                                        border: 1px solid var(--glass-border);
+                                        border-radius: 6px;
+                                        color: var(--text-main);
+                                        font-size: 11px;
+                                    ">
+                                </div>
+                                <button type="submit" style="
+                                    width: 100%;
+                                    padding: 8px;
+                                    background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+                                    border: none;
+                                    border-radius: 6px;
+                                    color: #0b1120;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    transition: all 0.2s ease;
+                                ">
+                                    <i class="fa-solid fa-upload"></i> Загрузить MTL
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Панель управления с кнопками и информацией в одном ряду -->
+                    <div class="model-controls" style="
+                        position: absolute;
+                        bottom: 20px;
+                        left: 20px;
+                        right: 20px;
+                        display: flex;
+                        gap: 12px;
+                        flex-wrap: wrap;
+                        justify-content: space-between;
+                        align-items: center;
+                        z-index: 10;
+                    ">
+                        <div class="controls-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="model-btn" id="reset-camera-btn">
+                                <i class="fa-solid fa-camera"></i> Сброс
+                            </button>
+                            <button class="model-btn" id="toggle-rotate-btn">
+                                <i class="fa-solid fa-rotate-right"></i> Автовращение
+                            </button>
+                            <button class="model-btn" id="toggle-wireframe-btn">
+                                <i class="fa-regular fa-square"></i> Каркас
+                            </button>
+                            <button class="model-btn" id="fullscreen-btn">
+                                <i class="fa-solid fa-expand"></i> Полный экран
+                            </button>
+                        </div>
+                        <div class="model-stats" id="model-stats" style="
+                            background: rgba(0,0,0,0.6);
+                            backdrop-filter: blur(10px);
+                            padding: 8px 16px;
+                            border-radius: 8px;
+                            color: white;
+                            font-size: 12px;
+                            font-family: monospace;
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 8px;
+                        ">
+                            <i class="fa-solid fa-cube"></i>
+                            <span id="model-format">Формат: {{ ext.upper() }}</span>
+                            <span>|</span>
+                            <span id="model-polygons">Полигонов: --</span>
+                            <span>|</span>
+                            <span id="model-scale">Масштаб: --</span>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-overlay" id="loading-overlay">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text" id="loading-text">Загрузка модели...</div>
+                        <div class="loading-progress">
+                            <div class="loading-progress-bar" id="loading-progress-bar"></div>
+                        </div>
+                    </div>
+                </div>    
+
+           {# Аудио файлы с кастомным плеером #}
+            {% elif ext in ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'] %}
+                <div class="custom-audio-player">
+                    <div class="audio-info">
+                        <div class="audio-icon">
+                            <i class="fa-solid fa-music"></i>
+                        </div>
+                        <div class="audio-details">
+                            <div class="audio-name">{{ file.filename }}</div>
+                            <div class="audio-meta">
+                                <i class="fa-regular fa-clock"></i> 
+                                <span id="audio-duration-display">--:--</span>
+                                <span class="separator">|</span>
+                                <i class="fa-regular fa-hard-drive"></i> 
+                                {% if file.file_size %}
+                                    {{ (file.file_size / 1024 / 1024)|round(2) }} MB
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="audio-controls">
+                        <button class="audio-btn" id="rewind-btn" title="Назад 10 сек (←)">
+                            <i class="fa-solid fa-backward-step"></i>
+                        </button>
+                        
+                        <button class="audio-btn" id="play-pause-btn">
+                            <i class="fa-solid fa-play"></i>
+                        </button>
+                        
+                        <button class="audio-btn" id="forward-btn" title="Вперед 10 сек (→)">
+                            <i class="fa-solid fa-forward-step"></i>
+                        </button>
+                        
+                        <div class="progress-container">
+                            <span class="current-time" id="current-time">00:00</span>
+                            <input type="range" class="progress-bar" id="audio-progress" value="0" step="1">
+                            <span class="total-time" id="total-time">--:--</span>
+                        </div>
+                        
+                        <div class="volume-control">
+                            <i class="fa-solid fa-volume-high" id="volume-icon"></i>
+                            <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.01" value="1">
+                        </div>
+                        
+                        <button class="audio-btn" id="download-audio-btn" title="Скачать">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                    </div>
+                    
+                    <audio id="audio-element" preload="metadata">
+                        <source src="{{ url_for('get_raw_file', file_id=file.id) }}" type="audio/mpeg">
+                        <source src="{{ url_for('get_raw_file', file_id=file.id) }}" type="audio/ogg">
+                        <source src="{{ url_for('get_raw_file', file_id=file.id) }}" type="audio/wav">
+                        Ваш браузер не поддерживает аудио плеер.
+                    </audio>
+                </div>
+                
+                <style>
+                    /* Дополнительные стили для кнопок перемотки */
+                    .audio-btn {
+                        background: rgba(255, 255, 255, 0.1);
+                        border: none;
+                        border-radius: 50%;
+                        width: 40px;
+                        height: 40px;
+                        cursor: pointer;
+                        color: var(--text-main);
+                        transition: all 0.2s ease;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    
+                    .audio-btn:hover {
+                        background: var(--accent-color);
+                        color: #0b1120;
+                        transform: scale(1.05);
+                    }
+                    
+                    .progress-bar {
+                        flex: 1;
+                        height: 4px;
+                        -webkit-appearance: none;
+                        background: rgba(255, 255, 255, 0.2);
+                        border-radius: 2px;
+                        cursor: pointer;
+                    }
+                    
+                    .progress-bar::-webkit-slider-thumb {
+                        -webkit-appearance: none;
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 50%;
+                        background: var(--accent-color);
+                        cursor: pointer;
+                        transition: transform 0.2s;
+                    }
+                    
+                    .progress-bar::-webkit-slider-thumb:hover {
+                        transform: scale(1.3);
+                    }
+                    
+                    /* Уведомления о горячих клавишах */
+                    .hotkey-toast {
+                        position: fixed;
+                        bottom: 20px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: rgba(0, 0, 0, 0.85);
+                        backdrop-filter: blur(10px);
+                        color: white;
+                        padding: 8px 16px;
+                        border-radius: 30px;
+                        font-size: 12px;
+                        font-family: monospace;
+                        z-index: 10000;
+                        animation: fadeInOut 1.5s ease;
+                        pointer-events: none;
+                        border: 1px solid var(--accent-color);
+                    }
+                    
+                    @keyframes fadeInOut {
+                        0%, 100% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+                        15%, 85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                    }
+                </style>
+                
+                <script>
+                    (function() {
+                        const audio = document.getElementById('audio-element');
+                        const playPauseBtn = document.getElementById('play-pause-btn');
+                        const progressBar = document.getElementById('audio-progress');
+                        const currentTimeSpan = document.getElementById('current-time');
+                        const totalTimeSpan = document.getElementById('total-time');
+                        const volumeSlider = document.getElementById('volume-slider');
+                        const volumeIcon = document.getElementById('volume-icon');
+                        const durationDisplay = document.getElementById('audio-duration-display');
+                        const rewindBtn = document.getElementById('rewind-btn');
+                        const forwardBtn = document.getElementById('forward-btn');
+                        
+                        // Форматирование времени
+                        function formatTime(seconds) {
+                            if (isNaN(seconds)) return '--:--';
+                            const mins = Math.floor(seconds / 60);
+                            const secs = Math.floor(seconds % 60);
+                            return `${mins}:${secs.toString().padStart(2, '0')}`;
+                        }
+                        
+                        // Показ уведомления о горячей клавише
+                        function showHotkeyToast(message) {
+                            const existingToast = document.querySelector('.hotkey-toast');
+                            if (existingToast) existingToast.remove();
+                            
+                            const toast = document.createElement('div');
+                            toast.className = 'hotkey-toast';
+                            toast.textContent = message;
+                            document.body.appendChild(toast);
+                            
+                            setTimeout(() => toast.remove(), 1500);
+                        }
+                        
+                        // Загрузка метаданных
+                        audio.addEventListener('loadedmetadata', () => {
+                            const duration = formatTime(audio.duration);
+                            totalTimeSpan.textContent = duration;
+                            if (durationDisplay) durationDisplay.textContent = duration;
+                            progressBar.max = audio.duration;
+                        });
+                        
+                        // Обновление времени
+                        audio.addEventListener('timeupdate', () => {
+                            currentTimeSpan.textContent = formatTime(audio.currentTime);
+                            progressBar.value = audio.currentTime;
+                        });
+                        
+                        // Play/Pause
+                        function togglePlayPause() {
+                            if (audio.paused) {
+                                audio.play();
+                                playPauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                                showHotkeyToast('▶ Воспроизведение');
+                            } else {
+                                audio.pause();
+                                playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                                showHotkeyToast('⏸ Пауза');
+                            }
+                        }
+                        
+                        playPauseBtn.addEventListener('click', togglePlayPause);
+                        
+                        // Перемотка назад на 10 секунд
+                        function rewind() {
+                            audio.currentTime = Math.max(0, audio.currentTime - 10);
+                            showHotkeyToast('⏪ Назад 10 сек');
+                        }
+                        
+                        // Перемотка вперед на 10 секунд
+                        function forward() {
+                            audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
+                            showHotkeyToast('⏩ Вперед 10 сек');
+                        }
+                        
+                        rewindBtn.addEventListener('click', rewind);
+                        forwardBtn.addEventListener('click', forward);
+                        
+                        // Изменение позиции
+                        progressBar.addEventListener('input', () => {
+                            audio.currentTime = progressBar.value;
+                        });
+                        
+                        // Изменение громкости
+                        volumeSlider.addEventListener('input', () => {
+                            audio.volume = volumeSlider.value;
+                            updateVolumeIcon();
+                        });
+                        
+                        function updateVolumeIcon() {
+                            const volume = audio.volume;
+                            if (volume === 0) {
+                                volumeIcon.className = 'fa-solid fa-volume-off';
+                            } else if (volume < 0.5) {
+                                volumeIcon.className = 'fa-solid fa-volume-low';
+                            } else {
+                                volumeIcon.className = 'fa-solid fa-volume-high';
+                            }
+                        }
+                        
+                        volumeIcon.addEventListener('click', () => {
+                            if (audio.volume > 0) {
+                                audio.volume = 0;
+                            } else {
+                                audio.volume = 1;
+                            }
+                            updateVolumeIcon();
+                            volumeSlider.value = audio.volume;
+                        });
+                        
+                        // Загрузка файла
+                        document.getElementById('download-audio-btn').addEventListener('click', () => {
+                            window.location.href = "{{ url_for('download_file', file_id=file.id) }}";
+                        });
+                        
+                        // ========== ГОРЯЧИЕ КЛАВИШИ ==========
+                        document.addEventListener('keydown', (e) => {
+                            // Игнорируем ввод в полях
+                            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || 
+                                document.activeElement.tagName === 'TEXTAREA')) {
+                                return;
+                            }
+                            
+                            switch(e.code) {
+                                case 'Space':
+                                    e.preventDefault();
+                                    togglePlayPause();
+                                    break;
+                                case 'ArrowLeft':
+                                    e.preventDefault();
+                                    rewind();
+                                    break;
+                                case 'ArrowRight':
+                                    e.preventDefault();
+                                    forward();
+                                    break;
+                                case 'ArrowUp':
+                                    e.preventDefault();
+                                    audio.volume = Math.min(1, audio.volume + 0.1);
+                                    volumeSlider.value = audio.volume;
+                                    updateVolumeIcon();
+                                    showHotkeyToast(`🔊 Громкость: ${Math.round(audio.volume * 100)}%`);
+                                    break;
+                                case 'ArrowDown':
+                                    e.preventDefault();
+                                    audio.volume = Math.max(0, audio.volume - 0.1);
+                                    volumeSlider.value = audio.volume;
+                                    updateVolumeIcon();
+                                    showHotkeyToast(`🔊 Громкость: ${Math.round(audio.volume * 100)}%`);
+                                    break;
+                                case 'KeyM':
+                                    e.preventDefault();
+                                    audio.muted = !audio.muted;
+                                    showHotkeyToast(audio.muted ? '🔇 Звук выключен' : '🔊 Звук включен');
+                                    break;
+                            }
+                        });
+                        
+                        // Сохранение прогресса прослушивания для длинных аудио
+                        const fileId = {{ file.id }};
+                        const storageKey = `audio_progress_${fileId}`;
+                        
+                        audio.addEventListener('loadedmetadata', () => {
+                            if (audio.duration > 600) {
+                                const savedTime = localStorage.getItem(storageKey);
+                                if (savedTime && parseFloat(savedTime) < audio.duration - 30) {
+                                    audio.currentTime = parseFloat(savedTime);
+                                }
+                            }
+                        });
+                        
+                        setInterval(() => {
+                            if (!audio.paused && audio.currentTime > 0 && audio.duration > 600) {
+                                localStorage.setItem(storageKey, audio.currentTime);
+                            }
+                        }, 10000);
+                        
+                        audio.addEventListener('ended', () => {
+                            localStorage.removeItem(storageKey);
+                        });
+                    })();
+                </script>
+
+            {# Видео файлы с кастомным плеером #}
+            {% elif ext in ['mp4', 'webm', 'mov', 'avi', 'mkv'] %}
+                <div class="custom-video-player">
+                    <div class="video-wrapper">
+                        <video id="video-element" preload="metadata">
+                            <source src="{{ url_for('get_raw_file', file_id=file.id) }}" type="video/mp4">
+                            <source src="{{ url_for('get_raw_file', file_id=file.id) }}" type="video/webm">
+                            <source src="{{ url_for('get_raw_file', file_id=file.id) }}" type="video/ogg">
+                            Ваш браузер не поддерживает видео плеер.
+                        </video>
+                        
+                        <div class="video-overlay-controls" id="video-controls">
+                            <div class="video-progress-container">
+                                <span class="video-time-current" id="video-current-time">00:00</span>
+                                <div class="video-progress-bar" id="video-progress-bar">
+                                    <div class="video-progress-buffered" id="video-progress-buffered"></div>
+                                    <div class="video-progress-filled" id="video-progress-filled"></div>
+                                </div>
+                                <span class="video-time-total" id="video-total-time">00:00</span>
+                            </div>
+                            
+                            <div class="video-buttons">
+                                <button class="video-control-btn" id="video-play-btn">
+                                    <i class="fa-solid fa-play"></i>
+                                </button>
+                                
+                                <button class="video-control-btn" id="video-stop-btn">
+                                    <i class="fa-solid fa-stop"></i>
+                                </button>
+                                
+                                <div class="video-volume">
+                                    <button class="video-control-btn" id="video-volume-btn">
+                                        <i class="fa-solid fa-volume-high"></i>
+                                    </button>
+                                    <input type="range" class="video-volume-slider" id="video-volume-slider" min="0" max="1" step="0.01" value="1">
+                                </div>
+                                
+                                <div class="video-speed">
+                                    <button class="video-control-btn" id="video-speed-btn">
+                                        1x
+                                    </button>
+                                    <div class="speed-menu" id="speed-menu">
+                                        <div data-speed="0.5">0.5x</div>
+                                        <div data-speed="0.75">0.75x</div>
+                                        <div data-speed="1" class="active">1x</div>
+                                        <div data-speed="1.25">1.25x</div>
+                                        <div data-speed="1.5">1.5x</div>
+                                        <div data-speed="2">2x</div>
+                                    </div>
+                                </div>
+                                
+                                <button class="video-control-btn" id="video-pip-btn">
+                                    <i class="fa-solid fa-window-restore"></i>
+                                </button>
+                                
+                                <button class="video-control-btn" id="video-fullscreen-btn">
+                                    <i class="fa-solid fa-expand"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="video-info">
+                        <div class="video-title">{{ file.filename }}</div>
+                        <div class="video-stats">
+                            <span><i class="fa-regular fa-clock"></i> <span id="video-duration">--:--</span></span>
+                            <span><i class="fa-regular fa-hard-drive"></i> {{ (file.file_size / 1024 / 1024)|round(2) }} MB</span>
+                            <span><i class="fa-regular fa-eye"></i> <span id="video-resolution">--x--</span></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <script>
+                    (function() {
+                        const video = document.getElementById('video-element');
+                        const videoControls = document.getElementById('video-controls');
+                        const playBtn = document.getElementById('video-play-btn');
+                        const stopBtn = document.getElementById('video-stop-btn');
+                        const volumeBtn = document.getElementById('video-volume-btn');
+                        const volumeSlider = document.getElementById('video-volume-slider');
+                        const speedBtn = document.getElementById('video-speed-btn');
+                        const speedMenu = document.getElementById('speed-menu');
+                        const pipBtn = document.getElementById('video-pip-btn');
+                        const fullscreenBtn = document.getElementById('video-fullscreen-btn');
+                        const progressBar = document.getElementById('video-progress-bar');
+                        const progressFilled = document.getElementById('video-progress-filled');
+                        const progressBuffered = document.getElementById('video-progress-buffered');
+                        const currentTimeSpan = document.getElementById('video-current-time');
+                        const totalTimeSpan = document.getElementById('video-total-time');
+                        const durationSpan = document.getElementById('video-duration');
+                        const resolutionSpan = document.getElementById('video-resolution');
+                        
+                        let controlsTimeout;
+                        
+                        function formatTime(seconds) {
+                            if (isNaN(seconds)) return '00:00';
+                            const hours = Math.floor(seconds / 3600);
+                            const mins = Math.floor((seconds % 3600) / 60);
+                            const secs = Math.floor(seconds % 60);
+                            
+                            if (hours > 0) {
+                                return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                            }
+                            return `${mins}:${secs.toString().padStart(2, '0')}`;
+                        }
+                        
+                        video.addEventListener('loadedmetadata', () => {
+                            const duration = formatTime(video.duration);
+                            totalTimeSpan.textContent = duration;
+                            durationSpan.textContent = duration;
+                            
+                            // Получение разрешения видео
+                            const width = video.videoWidth;
+                            const height = video.videoHeight;
+                            if (width && height) {
+                                resolutionSpan.textContent = `${width}x${height}`;
+                            }
+                        });
+                        
+                        video.addEventListener('timeupdate', () => {
+                            const percent = (video.currentTime / video.duration) * 100;
+                            progressFilled.style.width = `${percent}%`;
+                            currentTimeSpan.textContent = formatTime(video.currentTime);
+                        });
+                        
+                        video.addEventListener('progress', () => {
+                            if (video.buffered.length > 0) {
+                                const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+                                const percent = (bufferedEnd / video.duration) * 100;
+                                progressBuffered.style.width = `${percent}%`;
+                            }
+                        });
+                        
+                        playBtn.addEventListener('click', () => {
+                            if (video.paused) {
+                                video.play();
+                                playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                            } else {
+                                video.pause();
+                                playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                            }
+                        });
+                        
+                        stopBtn.addEventListener('click', () => {
+                            video.pause();
+                            video.currentTime = 0;
+                            playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                        });
+                        
+                        progressBar.addEventListener('click', (e) => {
+                            const rect = progressBar.getBoundingClientRect();
+                            const percent = (e.clientX - rect.left) / rect.width;
+                            video.currentTime = percent * video.duration;
+                        });
+                        
+                        volumeSlider.addEventListener('input', () => {
+                            video.volume = volumeSlider.value;
+                            updateVolumeIcon();
+                        });
+                        
+                        function updateVolumeIcon() {
+                            const volume = video.volume;
+                            if (volume === 0) {
+                                volumeBtn.innerHTML = '<i class="fa-solid fa-volume-off"></i>';
+                            } else if (volume < 0.5) {
+                                volumeBtn.innerHTML = '<i class="fa-solid fa-volume-low"></i>';
+                            } else {
+                                volumeBtn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+                            }
+                        }
+                        
+                        volumeBtn.addEventListener('click', () => {
+                            if (video.volume > 0) {
+                                video.volume = 0;
+                            } else {
+                                video.volume = 1;
+                            }
+                            updateVolumeIcon();
+                            volumeSlider.value = video.volume;
+                        });
+                        
+                        speedBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            speedMenu.classList.toggle('show');
+                        });
+                        
+                        speedMenu.querySelectorAll('div').forEach(item => {
+                            item.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                const speed = parseFloat(item.dataset.speed);
+                                video.playbackRate = speed;
+                                speedBtn.textContent = `${speed}x`;
+                                speedMenu.classList.remove('show');
+                                
+                                speedMenu.querySelectorAll('div').forEach(div => div.classList.remove('active'));
+                                item.classList.add('active');
+                            });
+                        });
+                        
+                        document.addEventListener('click', () => {
+                            speedMenu.classList.remove('show');
+                        });
+                        
+                        pipBtn.addEventListener('click', async () => {
+                            try {
+                                if (document.pictureInPictureElement) {
+                                    await document.exitPictureInPicture();
+                                } else {
+                                    await video.requestPictureInPicture();
+                                }
+                            } catch (error) {
+                                console.log('Picture-in-Picture не поддерживается');
+                            }
+                        });
+                        
+                        fullscreenBtn.addEventListener('click', () => {
+                            const container = document.querySelector('.custom-video-player');
+                            if (!document.fullscreenElement) {
+                                container.requestFullscreen();
+                                fullscreenBtn.innerHTML = '<i class="fa-solid fa-compress"></i>';
+                            } else {
+                                document.exitFullscreen();
+                                fullscreenBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                            }
+                        });
+                        
+                        document.addEventListener('fullscreenchange', () => {
+                            if (document.fullscreenElement) {
+                                fullscreenBtn.innerHTML = '<i class="fa-solid fa-compress"></i>';
+                            } else {
+                                fullscreenBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                            }
+                        });
+                        
+                        video.addEventListener('click', () => {
+                            if (video.paused) {
+                                video.play();
+                                playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                            } else {
+                                video.pause();
+                                playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                            }
+                        });
+                        
+                        // Автоматическое скрытие контролов
+                        const wrapper = document.querySelector('.video-wrapper');
+                        wrapper.addEventListener('mousemove', () => {
+                            videoControls.style.opacity = '1';
+                            clearTimeout(controlsTimeout);
+                            controlsTimeout = setTimeout(() => {
+                                if (!video.paused) {
+                                    videoControls.style.opacity = '0';
+                                }
+                            }, 3000);
+                        });
+                        
+                        wrapper.addEventListener('mouseleave', () => {
+                            if (!video.paused) {
+                                videoControls.style.opacity = '0';
+                            }
+                        });
+                        
+                        // Поддержка клавиатуры
+                        document.addEventListener('keydown', (e) => {
+                            if (document.activeElement !== video && document.activeElement?.tagName !== 'INPUT') {
+                                if (e.code === 'Space') {
+                                    e.preventDefault();
+                                    if (video.paused) {
+                                        video.play();
+                                        playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                                    } else {
+                                        video.pause();
+                                        playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                                    }
+                                } else if (e.code === 'ArrowLeft') {
+                                    video.currentTime = Math.max(0, video.currentTime - 5);
+                                } else if (e.code === 'ArrowRight') {
+                                    video.currentTime = Math.min(video.duration, video.currentTime + 5);
+                                } else if (e.code === 'ArrowUp') {
+                                    video.volume = Math.min(1, video.volume + 0.1);
+                                    volumeSlider.value = video.volume;
+                                    updateVolumeIcon();
+                                } else if (e.code === 'ArrowDown') {
+                                    video.volume = Math.max(0, video.volume - 0.1);
+                                    volumeSlider.value = video.volume;
+                                    updateVolumeIcon();
+                                }
+                            }
+                        });
+                    })();
+                </script>
+
+            {# Для остальных файлов #}
+            {% else %}
+                <div class="no-preview" style="padding: 40px; color: var(--text-muted);">
+                    <div style="font-size: 50px; margin-bottom: 10px;">📄</div>
+                    <p>Предпросмотр недоступен для этого типа файла.</p>
+                    <p style="font-size: 0.9rem; margin-top: 10px;">Расширение: .{{ ext }}</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Кнопка скачивания -->
+        <div class="direct-download">
+            <a href="{{ url_for('download_file', file_id=file.id) }}">
+                <i class="fa-solid fa-download"></i>
+                Скачать файл
+            </a>
+        </div>
+
+        <div class="view-footer" style="margin-top: 30px; border-top: 1px solid var(--glass-border); padding-top: 20px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+            <a href="{{ url_for('share_file', file_id=file.id) }}" class="btn-action" style="background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); text-decoration: none;">
+                <i class="fa-solid fa-share-nodes"></i> Поделиться
+            </a>
+            <a href="{{ url_for('index') }}" class="btn-action" style="background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); text-decoration: none;">
+                <i class="fa-solid fa-arrow-left"></i> Назад к списку
+            </a>
+        </div>
+    </div>
+</div>
+
+{# 3D МОДЕЛИ - СКРИПТЫ #}
+{% if ext in ['stl', 'obj', 'gltf', 'glb', 'ply', 'fbx', '3mf', 'dae'] %}
+<script type="importmap">
+    {
+        "imports": {
+            "three": "{{ url_for('static', filename='three/build/three.module.js') }}",
+            "three/addons/": "{{ url_for('static', filename='three/examples/jsm/') }}"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+    import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'; 
+    
+    // Получаем ID файла и формат
+    const fileId = {{ file.id }};
+    const fileExt = '{{ ext }}';
+    const modelUrl = "{{ url_for('get_raw_file', file_id=file.id) }}";
+    
+    // Инициализация сцены
+    const canvas = document.getElementById('model-canvas');
+    const container = document.querySelector('.model-viewer-container');
+    
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+    scene.fog = new THREE.FogExp2(0x1a1a2e, 0.002);
+    
+    // Камера
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(5, 5, 5);
+    camera.lookAt(0, 0, 0);
+    
+    // Рендерер
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    
+    // Контролы
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 2.0;
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    controls.zoomSpeed = 1.2;
+    controls.panSpeed = 0.8;
+    controls.rotateSpeed = 1.0;
+    
+    // Освещение
+    const ambientLight = new THREE.AmbientLight(0x404060);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 10, 7);
+    directionalLight.castShadow = true;
+    directionalLight.receiveShadow = true;
+    directionalLight.shadow.mapSize.width = 1024;
+    directionalLight.shadow.mapSize.height = 1024;
+    scene.add(directionalLight);
+    
+    const backLight = new THREE.DirectionalLight(0x88aaff, 0.5);
+    backLight.position.set(-5, 0, -5);
+    scene.add(backLight);
+    
+    const fillLight = new THREE.PointLight(0x4466cc, 0.3);
+    fillLight.position.set(0, 2, 3);
+    scene.add(fillLight);
+    
+    const rimLight = new THREE.PointLight(0xffaa66, 0.4);
+    rimLight.position.set(2, 3, -4);
+    scene.add(rimLight);
+    
+    // Вспомогательные элементы
+    const gridHelper = new THREE.GridHelper(20, 20, 0x88aaff, 0x335588);
+    gridHelper.position.y = -1;
+    scene.add(gridHelper);
+    
+    const axesHelper = new THREE.AxesHelper(5);
+    axesHelper.visible = false;
+    scene.add(axesHelper);
+    
+    // Переменные для модели
+    let currentModel = null;
+    let wireframeMode = false;
+    let autoRotate = false;
+    
+    // Элементы UI
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
+    const loadingProgressBar = document.getElementById('loading-progress-bar');
+    
+    // Функция форматирования размера
+    function formatFileSize(bytes) {
+        if (bytes === 0) return { value: 0, unit: 'B' };
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        const value = (bytes / Math.pow(1024, i)).toFixed(1);
+        return { value: parseFloat(value), unit: units[i] };
+    }
+    
+    // Функция показа уведомлений
+    function showNotification(message, type = 'info') {
+        const toastContainer = document.getElementById('toast-container') || (() => {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            `;
+            document.body.appendChild(container);
+            return container;
+        })();
+        
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            padding: 12px 20px;
+            background: ${type === 'success' ? '#22c55e' : '#ef4444'};
+            color: white;
+            border-radius: 8px;
+            font-size: 14px;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            cursor: pointer;
+        `;
+        toast.textContent = message;
+        toast.onclick = () => toast.remove();
+        toastContainer.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.animation = 'slideOut 0.3s ease forwards';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+    
+    // Функция обновления прогресса
+    function updateProgress(progress) {
+        const percent = Math.round(progress * 100);
+        loadingProgressBar.style.width = `${percent}%`;
+        loadingText.textContent = `Загрузка модели... ${percent}%`;
+    }
+    
+    // Функция центрирования модели
+    function centerModel(model) {
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 3 / maxDim;
+        
+        model.scale.set(scale, scale, scale);
+        
+        model.position.x = -center.x * scale;
+        model.position.y = -center.y * scale;
+        model.position.z = -center.z * scale;
+        
+        const distance = maxDim * 1.5;
+        camera.position.set(distance, distance, distance);
+        controls.target.set(0, 0, 0);
+        controls.update();
+        
+        return { center, size, scale };
+    }
+    
+    // Подсчет полигонов
+    function getVertexCount(model) {
+        let count = 0;
+        model.traverse((child) => {
+            if (child.isMesh && child.geometry) {
+                const positionAttr = child.geometry.attributes.position;
+                if (positionAttr) {
+                    count += positionAttr.count;
+                }
+            }
+        });
+        return count;
+    }
+    
+    // Функция удаления материала
+    window.deleteMaterial = async function(materialId, materialName) {
+        if (confirm(`Удалить материал "${materialName}"? Это действие нельзя отменить.`)) {
+            try {
+                const response = await fetch(`/delete_material/${materialId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'csrf_token': '{{ csrf_token() }}'
+                    })
+                });
+                
+                if (response.ok) {
+                    loadMaterialsForModel();
+                    showNotification('Материал удален', 'success');
+                } else {
+                    showNotification('Ошибка при удалении материала', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                showNotification('Ошибка при удалении материала', 'error');
+            }
+        }
+    };
+    
+    // Функция удаления MTL файла
+    window.deleteMtlFile = async function(mtlFileId) {
+        if (confirm('Удалить MTL файл и все его материалы? Это действие нельзя отменить.')) {
+            try {
+                const response = await fetch(`/delete_mtl/${mtlFileId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'csrf_token': '{{ csrf_token() }}'
+                    })
+                });
+                
+                if (response.ok) {
+                    loadMaterialsForModel();
+                    showNotification('MTL файл и материалы удалены', 'success');
+                } else {
+                    showNotification('Ошибка при удалении MTL файла', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                showNotification('Ошибка при удалении MTL файла', 'error');
+            }
+        }
+    };
+    
+    // Функция загрузки материалов из MTL
+    async function loadMaterialsForModel() {
+        const materialsList = document.getElementById('materials-list');
+        const materialsCount = document.getElementById('materials-count');
+        
+        if (!materialsList) return;
+        
+        try {
+            const response = await fetch(`/model_materials/${fileId}`);
+            const data = await response.json();
+            
+            const materials = data.materials || data;
+            const mtlFile = data.mtl_file || null;
+            
+            if (materials.length === 0) {
+                materialsList.innerHTML = `
+                    <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+                        <i class="fa-regular fa-cube" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                        Нет MTL материалов<br>
+                        <span style="font-size: 10px;">Загрузите MTL файл для OBJ модели</span>
+                    </div>
+                `;
+                if (materialsCount) materialsCount.textContent = '0';
+                return;
+            }
+            
+            if (materialsCount) materialsCount.textContent = materials.length;
+            
+            let mtlHeaderHtml = '';
+            if (mtlFile && mtlFile.id) {
+                mtlHeaderHtml = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+                        <span style="font-size: 11px; color: var(--text-muted);">
+                            <i class="fa-regular fa-file"></i> ${escapeHtml(mtlFile.filename || 'MTL файл')}
+                        </span>
+                        <button onclick="window.deleteMtlFile(${mtlFile.id})" style="
+                            background: rgba(239,68,68,0.2);
+                            border: none;
+                            border-radius: 4px;
+                            padding: 4px 8px;
+                            color: #ff6b6b;
+                            cursor: pointer;
+                            font-size: 10px;
+                            transition: all 0.2s ease;
+                        " onmouseover="this.style.background='rgba(239,68,68,0.4)'" onmouseout="this.style.background='rgba(239,68,68,0.2)'">
+                            <i class="fa-regular fa-trash-can"></i> Удалить MTL
+                        </button>
+                    </div>
+                `;
+            }
+            
+            let materialsHtml = '';
+            for (const mat of materials) {
+                const hasTextures = mat.diffuse_map || mat.specular_map || mat.normal_map;
+                materialsHtml += `
+                    <div style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: bold; font-size: 12px; color: var(--accent-color); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                    ${escapeHtml(mat.name)}
+                                    ${hasTextures ? '<span style="font-size: 8px; background: var(--accent-dark); padding: 2px 6px; border-radius: 10px;">📷 текстуры</span>' : ''}
+                                </div>
+                                <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">
+                                    ${mat.diffuse ? `🎨 Цвет: ${mat.diffuse}<br>` : ''}
+                                    ${mat.shininess ? `✨ Блеск: ${mat.shininess}<br>` : ''}
+                                    ${mat.diffuse_map ? `📷 Цвет: ${mat.diffuse_map.split('/').pop()}<br>` : ''}
+                                    ${mat.specular_map ? `✨ Блик: ${mat.specular_map.split('/').pop()}<br>` : ''}
+                                    ${mat.normal_map ? `🔷 Нормаль: ${mat.normal_map.split('/').pop()}` : ''}
+                                </div>
+                            </div>
+                            <button onclick="window.deleteMaterial(${mat.id}, '${escapeHtml(mat.name)}')" style="
+                                background: rgba(239,68,68,0.2);
+                                border: none;
+                                border-radius: 4px;
+                                padding: 4px 8px;
+                                color: #ff6b6b;
+                                cursor: pointer;
+                                font-size: 10px;
+                                transition: all 0.2s ease;
+                                margin-left: 8px;
+                            " onmouseover="this.style.background='rgba(239,68,68,0.4)'" onmouseout="this.style.background='rgba(239,68,68,0.2)'">
+                                <i class="fa-regular fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            materialsList.innerHTML = mtlHeaderHtml + materialsHtml;
+            
+            if (currentModel && materials.length > 0) {
+                applyMaterialsToModel(materials);
+            }
+            
+        } catch (error) {
+            console.error('Ошибка загрузки материалов:', error);
+            materialsList.innerHTML = `
+                <div style="text-align: center; color: #ff6b6b; padding: 20px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    Ошибка загрузки материалов
+                </div>
+            `;
+        }
+    }
+    
+    // Функция применения материалов к модели
+    function applyMaterialsToModel(materials) {
+        const materialMap = {};
+        
+        for (const mat of materials) {
+            const threeMaterial = new THREE.MeshStandardMaterial();
+            threeMaterial.name = mat.name;
+            
+            if (mat.diffuse) {
+                const rgb = mat.diffuse.split(' ').map(Number);
+                if (rgb.length >= 3) {
+                    threeMaterial.color = new THREE.Color(rgb[0], rgb[1], rgb[2]);
+                }
+            }
+            
+            if (mat.shininess) {
+                threeMaterial.shininess = mat.shininess;
+            }
+            
+            if (mat.transparency !== undefined && mat.transparency < 1) {
+                threeMaterial.transparent = true;
+                threeMaterial.opacity = mat.transparency;
+            }
+            
+            materialMap[mat.name] = threeMaterial;
+        }
+        
+        if (currentModel) {
+            currentModel.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const matName = child.material.name || child.material;
+                    if (materialMap[matName]) {
+                        child.material = materialMap[matName];
+                    }
+                }
+            });
+        }
+    }
+    
+    // Функция загрузки текстур для модели
+    async function loadTexturesForModel() {
+        const texturesList = document.getElementById('textures-list');
+        const texturesCount = document.getElementById('textures-count');
+        
+        if (!texturesList) return;
+        
+        try {
+            const response = await fetch(`/model_textures/${fileId}`);
+            const textures = await response.json();
+            
+            if (textures.length === 0) {
+                texturesList.innerHTML = `
+                    <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+                        <i class="fa-regular fa-image" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                        Нет текстур<br>
+                        <span style="font-size: 10px;">Загрузите текстуру выше</span>
+                    </div>
+                `;
+                if (texturesCount) texturesCount.textContent = '0';
+                return;
+            }
+            
+            if (texturesCount) texturesCount.textContent = textures.length;
+            
+            const textureLoader = new THREE.TextureLoader();
+            const typeNames = {
+                'diffuse': 'Диффузная (цвет)',
+                'normal': 'Нормаль-карта',
+                'specular': 'Спекулярная',
+                'roughness': 'Шероховатость',
+                'ao': 'Окклюзия (AO)'
+            };
+            const typeIcons = {
+                'diffuse': '🎨',
+                'normal': '🔷',
+                'specular': '✨',
+                'roughness': '📊',
+                'ao': '🌑'
+            };
+            
+            let texturesHtml = '';
+            for (const tex of textures) {
+                const icon = typeIcons[tex.type] || '🖼️';
+                const sizeFormatted = formatFileSize(tex.size);
+                
+                texturesHtml += `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                            <span style="font-size: 14px;">${icon}</span>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-size: 11px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(tex.filename)}">
+                                    ${typeNames[tex.type] || tex.type}
+                                </div>
+                                <div style="font-size: 9px; color: var(--text-muted);">
+                                    ${sizeFormatted.value} ${sizeFormatted.unit}
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="window.deleteTexture(${tex.id})" style="
+                            background: rgba(239,68,68,0.2);
+                            border: none;
+                            border-radius: 4px;
+                            padding: 4px 8px;
+                            color: #ff6b6b;
+                            cursor: pointer;
+                            font-size: 10px;
+                            transition: all 0.2s ease;
+                        " onmouseover="this.style.background='rgba(239,68,68,0.4)'" onmouseout="this.style.background='rgba(239,68,68,0.2)'">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </div>
+                `;
+                
+                const textureUrl = tex.url;
+                const texture = textureLoader.load(textureUrl);
+                
+                if (currentModel) {
+                    currentModel.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            const material = child.material;
+                            switch(tex.type) {
+                                case 'diffuse':
+                                    material.map = texture;
+                                    break;
+                                case 'normal':
+                                    material.normalMap = texture;
+                                    break;
+                                case 'specular':
+                                    material.specularMap = texture;
+                                    break;
+                                case 'roughness':
+                                    material.roughnessMap = texture;
+                                    break;
+                                case 'ao':
+                                    material.aoMap = texture;
+                                    break;
+                            }
+                            material.needsUpdate = true;
+                        }
+                    });
+                }
+            }
+            texturesList.innerHTML = texturesHtml;
+            
+        } catch (error) {
+            console.error('Ошибка загрузки текстур:', error);
+            texturesList.innerHTML = `
+                <div style="text-align: center; color: #ff6b6b; padding: 20px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                    Ошибка загрузки текстур
+                </div>
+            `;
+        }
+    }
+    
+    // Функция загрузки OBJ с MTL
+    function loadObjWithMTL(url, onLoadCallback, onProgressCallback, onErrorCallback) {
+        const objLoader = new OBJLoader();
+        
+        fetch(`/model_materials/${fileId}`)
+            .then(response => response.json())
+            .then(data => {
+                const materials = data.materials || data;
+                if (materials.length > 0) {
+                    const materialMap = {};
+                    for (const mat of materials) {
+                        const threeMaterial = new THREE.MeshStandardMaterial();
+                        if (mat.diffuse) {
+                            const rgb = mat.diffuse.split(' ').map(Number);
+                            if (rgb.length >= 3) {
+                                threeMaterial.color = new THREE.Color(rgb[0], rgb[1], rgb[2]);
+                            }
+                        }
+                        if (mat.shininess) {
+                            threeMaterial.shininess = mat.shininess;
+                        }
+                        materialMap[mat.name] = threeMaterial;
+                    }
+                    
+                    objLoader.load(url, (object) => {
+                        object.traverse((child) => {
+                            if (child.isMesh && child.material) {
+                                const matName = child.material.name || child.material;
+                                if (materialMap[matName]) {
+                                    child.material = materialMap[matName];
+                                }
+                            }
+                        });
+                        onLoadCallback(object);
+                    }, onProgressCallback, onErrorCallback);
+                } else {
+                    objLoader.load(url, onLoadCallback, onProgressCallback, onErrorCallback);
+                }
+            })
+            .catch(() => {
+                objLoader.load(url, onLoadCallback, onProgressCallback, onErrorCallback);
+            });
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Функция для сворачивания/разворачивания панелей
+    window.togglePanel = function(panelId) {
+        const panel = document.getElementById(panelId);
+        const icon = document.getElementById(panelId + '-icon');
+        
+        if (panel.style.display === 'none') {
+            panel.style.display = 'block';
+            if (icon) icon.style.transform = 'rotate(0deg)';
+        } else {
+            panel.style.display = 'none';
+            if (icon) icon.style.transform = 'rotate(-90deg)';
+        }
+    };
+    
+    // Функция загрузки модели
+    function loadModel() {
+        loadingOverlay.style.display = 'flex';
+        
+        const onProgress = (xhr) => {
+            if (xhr.lengthComputable) {
+                const progress = xhr.loaded / xhr.total;
+                updateProgress(progress);
+            }
+        };
+        
+        const onError = (error) => {
+            console.error('Ошибка загрузки модели:', error);
+            loadingText.textContent = 'Ошибка загрузки модели';
+            loadingProgressBar.style.backgroundColor = '#ff6b6b';
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.innerHTML = `
+                <i class="fa-solid fa-triangle-exclamation" style="font-size: 48px; margin-bottom: 15px;"></i>
+                <p>Не удалось загрузить 3D модель</p>
+                <p style="font-size: 12px; margin-top: 10px;">Формат: ${fileExt.toUpperCase()}</p>
+                <a href="${modelUrl}" download style="margin-top: 15px; display: inline-block; color: var(--accent-color);">
+                    <i class="fa-solid fa-download"></i> Скачать модель
+                </a>
+            `;
+            container.appendChild(errorDiv);
+            
+            setTimeout(() => {
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    loadingOverlay.style.display = 'none';
+                }, 300);
+            }, 2000);
+        };
+        
+        const onLoad = (model) => {
+            currentModel = model;
+            
+            if (model.isMesh) {
+                model.castShadow = true;
+                model.receiveShadow = true;
+                if (model.material) {
+                    model.material.side = THREE.DoubleSide;
+                }
+            } else {
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.side = THREE.DoubleSide;
+                        }
+                    }
+                });
+            }
+            
+            scene.add(model);
+            const info = centerModel(model);
+            
+            const vertexCount = getVertexCount(model);
+            
+            document.getElementById('model-format').textContent = `Формат: ${fileExt.toUpperCase()}`;
+            document.getElementById('model-polygons').textContent = `Полигонов: ~${Math.floor(vertexCount / 3)}`;
+            document.getElementById('model-scale').textContent = `Масштаб: ${info.scale.toFixed(2)}x`;
+            
+            setTimeout(() => {
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    loadingOverlay.style.display = 'none';
+                }, 300);
+            }, 500);
+            
+            loadTexturesForModel();
+            
+            if (fileExt === 'obj') {
+                loadMaterialsForModel();
+            }
+        };
+        
+        switch(fileExt) {
+            case 'stl':
+                const stlLoader = new STLLoader();
+                stlLoader.load(modelUrl, (geometry) => {
+                    const material = new THREE.MeshStandardMaterial({ 
+                        color: 0x66ccff,
+                        roughness: 0.3,
+                        metalness: 0.7,
+                        flatShading: false
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    onLoad(mesh);
+                }, onProgress, onError);
+                break;
+                
+            case 'obj':
+                loadObjWithMTL(modelUrl, onLoad, onProgress, onError);
+                break;
+                
+            case 'gltf':
+            case 'glb':
+                const gltfLoader = new GLTFLoader();
+                gltfLoader.load(modelUrl, (gltf) => {
+                    onLoad(gltf.scene);
+                }, onProgress, onError);
+                break;
+
+            case 'fbx':
+                const fbxLoader = new FBXLoader();
+                fbxLoader.load(modelUrl, (fbxModel) => {
+                    fbxModel.scale.set(0.01, 0.01, 0.01);
+                    onLoad(fbxModel);
+                }, onProgress, onError);
+                break;    
+               
+            case 'ply':
+                const plyLoader = new PLYLoader();
+                plyLoader.load(modelUrl, (geometry) => {
+                    const material = new THREE.MeshStandardMaterial({
+                        color: 0x88aaff,
+                        roughness: 0.4,
+                        metalness: 0.6,
+                        vertexColors: true
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    onLoad(mesh);
+                }, onProgress, onError);
+                break;
+                
+            default:
+                onError(new Error(`Формат ${fileExt} не поддерживается`));
+        }
+    }
+    
+    // Переключение каркасного режима
+    function toggleWireframe() {
+        wireframeMode = !wireframeMode;
+        if (currentModel) {
+            currentModel.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(mat => mat.wireframe = wireframeMode);
+                    } else {
+                        child.material.wireframe = wireframeMode;
+                    }
+                }
+            });
+        }
+        
+        const btn = document.getElementById('toggle-wireframe-btn');
+        if (wireframeMode) {
+            btn.innerHTML = '<i class="fa-regular fa-square-check"></i> Каркас';
+            btn.style.background = 'var(--accent-color)';
+        } else {
+            btn.innerHTML = '<i class="fa-regular fa-square"></i> Каркас';
+            btn.style.background = 'rgba(0, 0, 0, 0.7)';
+        }
+    }
+    
+    // Сброс камеры
+    function resetCamera() {
+        if (currentModel) {
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const distance = maxDim * 1.5;
+            camera.position.set(distance, distance, distance);
+        } else {
+            camera.position.set(5, 5, 5);
+        }
+        controls.target.set(0, 0, 0);
+        controls.update();
+    }
+    
+    // Переключение автовращения
+    function toggleAutoRotate() {
+        autoRotate = !autoRotate;
+        controls.autoRotate = autoRotate;
+        const btn = document.getElementById('toggle-rotate-btn');
+        if (autoRotate) {
+            btn.innerHTML = '<i class="fa-solid fa-stop"></i> Стоп';
+            btn.style.background = 'var(--accent-color)';
+        } else {
+            btn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Автовращение';
+            btn.style.background = 'rgba(0, 0, 0, 0.7)';
+        }
+    }
+    
+    // Полноэкранный режим
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            container.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    }
+    
+    // Анимация
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    
+    // Обработка изменения размера окна
+    function handleResize() {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+    }
+    
+    // Навешиваем обработчики
+    document.getElementById('reset-camera-btn').addEventListener('click', resetCamera);
+    document.getElementById('toggle-rotate-btn').addEventListener('click', toggleAutoRotate);
+    document.getElementById('toggle-wireframe-btn').addEventListener('click', toggleWireframe);
+    document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+    
+    window.addEventListener('resize', handleResize);
+    
+    window.deleteTexture = function(textureId) {
+        if (confirm('Удалить эту текстуру? Действие нельзя отменить.')) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/delete_texture/${textureId}`;
+            
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = '{{ csrf_token() }}';
+            form.appendChild(csrfInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    };
+    
+    loadModel();
+    animate();
+</script>
+{% endif %}
+<script>
+// Сохранение таймкода для видео
+document.addEventListener('DOMContentLoaded', function() {
+    const video = document.querySelector('video');
+    if (video) {
+        const fileId = {{ file.id }};
+        const storageKey = `video_time_${fileId}`;
+        
+        // Восстанавливаем время
+        const savedTime = localStorage.getItem(storageKey);
+        if (savedTime) {
+            video.currentTime = parseFloat(savedTime);
+        }
+        
+        // Сохраняем при паузе
+        video.addEventListener('pause', function() {
+            localStorage.setItem(storageKey, video.currentTime);
+        });
+        
+        // Сохраняем каждые 5 секунд
+        setInterval(function() {
+            if (!video.paused) {
+                localStorage.setItem(storageKey, video.currentTime);
+            }
+        }, 5000);
+        
+        // Очищаем при завершении
+        video.addEventListener('ended', function() {
+            localStorage.removeItem(storageKey);
+        });
+    }
+});
+</script>
+{% endblock %}
