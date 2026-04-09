@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}Вход в систему{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card" style="max-width: 450px; animation: slideIn 0.5s ease;">
+        <!-- Декоративный элемент сверху -->
+        <div style="
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-color), var(--accent-hover));
+            border-radius: 12px 12px 0 0;
+        "></div>
+
+        <!-- Иконка и заголовок -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 20px;
+                background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+                border-radius: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 2.5rem;
+                color: #0b1120;
+                box-shadow: 0 10px 25px rgba(var(--accent-rgb), 0.3);
+                animation: pulse 2s ease infinite;
+            ">
+                <i class="fa-solid fa-right-to-bracket"></i>
+            </div>
+            <h2 style="margin: 0; font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-color), var(--accent-hover)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                Добро пожаловать!
+            </h2>
+            <p style="color: var(--text-muted); margin-top: 8px;">Войдите в свой аккаунт</p>
+        </div>
+
+        <!-- Форма входа -->
+        <form method="POST" action="{{ url_for('login') }}" style="margin-bottom: 20px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+            <!-- Email с иконкой -->
+            <div style="margin-bottom: 20px; position: relative;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; font-weight: 500;">
+                    <i class="fa-regular fa-envelope" style="margin-right: 5px;"></i>
+                    Email
+                </label>
+                <div style="position: relative;">
+                    <i  style="
+                        position: absolute;
+                        left: 12px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        color: var(--text-muted);
+                        z-index: 1;
+                    "></i>
+                    <input type="email" 
+                           name="email" 
+                           placeholder="example@mail.com" 
+                           required
+                           style="
+                               width: 100%;
+                               padding: 14px 14px 14px 40px;
+                               border: 2px solid var(--glass-border);
+                               border-radius: 12px;
+                               background: rgba(255,255,255,0.03);
+                               color: var(--text-main);
+                               font-size: 1rem;
+                               transition: all 0.3s ease;
+                           "
+                           onfocus="this.style.borderColor='var(--accent-color)'; this.style.boxShadow='0 0 0 3px var(--accent-dark)'"
+                           onblur="this.style.borderColor='var(--glass-border)'; this.style.boxShadow='none'">
+                </div>
+            </div>
+
+            <!-- Пароль с иконкой -->
+            <div style="margin-bottom: 25px; position: relative;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; font-weight: 500;">
+                    <i class="fa-solid fa-lock" style="margin-right: 5px;"></i>
+                    Пароль
+                </label>
+                <div style="position: relative;">
+                    <i style="
+                        position: absolute;
+                        left: 12px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        color: var(--text-muted);
+                        z-index: 1;
+                    "></i>
+                    <input type="password" 
+                           name="password" 
+                           placeholder="••••••••" 
+                           required
+                           style="
+                               width: 100%;
+                               padding: 14px 14px 14px 40px;
+                               border: 2px solid var(--glass-border);
+                               border-radius: 12px;
+                               background: rgba(255,255,255,0.03);
+                               color: var(--text-main);
+                               font-size: 1rem;
+                               transition: all 0.3s ease;
+                           "
+                           onfocus="this.style.borderColor='var(--accent-color)'; this.style.boxShadow='0 0 0 3px var(--accent-dark)'"
+                           onblur="this.style.borderColor='var(--glass-border)'; this.style.boxShadow='none'">
+                </div>
+            </div>
+
+            <!-- Кнопка входа -->
+            <button type="submit" 
+                    class="submit-btn"
+                    style="
+                        width: 100%;
+                        padding: 16px;
+                        font-size: 1.1rem;
+                        margin-bottom: 20px;
+                        position: relative;
+                        overflow: hidden;
+                    ">
+                <span style="position: relative; z-index: 1;">
+                    <i class="fa-solid fa-arrow-right-to-bracket" style="margin-right: 8px;"></i>
+                    Войти
+                </span>
+            </button>
+
+            <!-- Дополнительные опции -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" name="remember" style="width: 16px; height: 16px; accent-color: var(--accent-color);">
+                    <span style="color: var(--text-muted); font-size: 0.9rem;">Запомнить меня</span>
+                </label>
+                <a href="#" style="color: var(--accent-color); font-size: 0.9rem; text-decoration: none; transition: all 0.3s ease;">
+                    Забыли пароль?
+                </a>
+            </div>
+        </form>
+
+        <!-- Разделитель -->
+        <div style="display: flex; align-items: center; gap: 15px; margin: 25px 0;">
+            <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--glass-border), transparent);"></div>
+            <span style="color: var(--text-muted); font-size: 0.9rem;">или</span>
+            <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--glass-border), transparent);"></div>
+        </div>
+
+        <!-- Регистрация -->
+        <div style="text-align: center;">
+            <p style="color: var(--text-muted); margin-bottom: 15px;">Нет аккаунта?</p>
+            <a href="{{ url_for('register') }}" 
+               class="btn-action"
+               style="
+                   display: inline-flex;
+                   align-items: center;
+                   gap: 8px;
+                   padding: 12px 30px;
+                   background: transparent;
+                   border: 2px solid var(--accent-color);
+                   border-radius: 30px;
+                   color: var(--accent-color);
+                   font-size: 1rem;
+                   font-weight: 600;
+                   text-decoration: none;
+                   transition: all 0.3s ease;
+               "
+               onmouseover="this.style.background='var(--accent-color)'; this.style.color='#0b1120'"
+               onmouseout="this.style.background='transparent'; this.style.color='var(--accent-color)'">
+                <i class="fa-solid fa-user-plus"></i>
+                Создать аккаунт
+            </a>
+        </div>
+
+        
+    </div>
+</div>
+{% endblock %}

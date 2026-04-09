@@ -1,0 +1,556 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование профиля{% endblock %}
+
+{% block content %}
+<style>
+/* Дополнительные стили для страницы редактирования */
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.edit-form-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    animation: fadeIn 0.5s ease;
+}
+
+.edit-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+    border: 1px solid var(--glass-border);
+    border-radius: 32px;
+    padding: 40px;
+    backdrop-filter: blur(12px);
+    position: relative;
+    overflow: hidden;
+}
+
+.edit-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.1), transparent);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.edit-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent-color), var(--accent-hover));
+    border-radius: 32px 32px 0 0;
+}
+
+.form-group {
+    margin-bottom: 24px;
+    position: relative;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-label i {
+    margin-right: 6px;
+    color: var(--accent-color);
+}
+
+.form-input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid var(--glass-border);
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-main);
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.2);
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.form-input:hover {
+    border-color: var(--accent-color);
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 120px;
+    font-family: inherit;
+}
+
+.char-counter {
+    text-align: right;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 5px;
+}
+
+.char-counter.warning {
+    color: var(--error);
+}
+
+.button-group {
+    display: flex;
+    gap: 16px;
+    margin-top: 32px;
+}
+
+.btn-save {
+    flex: 1;
+    background: linear-gradient(135deg, var(--success), #16a34a);
+    color: #0b1120;
+    border: none;
+    border-radius: 30px;
+    padding: 14px 24px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-save::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-save:hover::before {
+    width: 300px;
+    height: 300px;
+}
+
+.btn-save:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(34, 197, 94, 0.4);
+}
+
+.btn-cancel {
+    flex: 1;
+    background: transparent;
+    border: 2px solid var(--glass-border);
+    color: var(--text-muted);
+    border-radius: 30px;
+    padding: 14px 24px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+}
+
+.btn-cancel:hover {
+    border-color: var(--error);
+    color: var(--error);
+    transform: translateY(-2px);
+}
+
+/* Анимация загрузки */
+.btn-save.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-save.loading::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    top: 50%;
+    left: 50%;
+    margin-left: -10px;
+    margin-top: -10px;
+    border: 2px solid transparent;
+    border-top-color: #0b1120;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+/* Уведомление об успехе */
+.success-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--success);
+    color: #0b1120;
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-weight: 600;
+    z-index: 9999;
+    animation: slideIn 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+</style>
+
+<div class="edit-form-container">
+    <div class="edit-card">
+        <!-- Заголовок -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="
+                width: 70px;
+                height: 70px;
+                margin: 0 auto 20px;
+                background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+                border-radius: 25px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 2rem;
+                color: #0b1120;
+                animation: float 3s ease-in-out infinite;
+            ">
+                <i class="fa-solid fa-pen-to-square"></i>
+            </div>
+            <h2 style="margin: 0; font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-color), var(--accent-hover)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                Редактирование профиля
+            </h2>
+            <p style="color: var(--text-muted); margin-top: 8px;">
+                Обновите информацию о себе
+            </p>
+        </div>
+
+        <!-- Форма -->
+        <form method="POST" id="edit-profile-form" action="{{ url_for('edit_profile') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+            <!-- Имя пользователя -->
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fa-solid fa-user"></i>
+                    Имя пользователя
+                </label>
+                <input type="text" 
+                       name="username" 
+                       id="username"
+                       value="{{ user.username }}" 
+                       required 
+                       class="form-input"
+                       maxlength="50">
+                <div class="char-counter" id="username-counter">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span id="username-length">{{ user.username|length }}</span>/50
+                </div>
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fa-solid fa-envelope"></i>
+                    Email
+                </label>
+                <input type="email" 
+                       name="email" 
+                       id="email"
+                       value="{{ user.email }}" 
+                       required 
+                       class="form-input">
+            </div>
+
+            <!-- О себе -->
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fa-solid fa-note-sticky"></i>
+                    О себе
+                </label>
+                <textarea name="bio" 
+                          id="bio"
+                          rows="4" 
+                          class="form-input form-textarea"
+                          maxlength="500"
+                          placeholder="Расскажите немного о себе...">{% if user.bio %}{{ user.bio }}{% endif %}</textarea>
+                <div class="char-counter" id="bio-counter">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span id="bio-length">{% if user.bio %}{{ user.bio|length }}{% else %}0{% endif %}</span>/500
+                </div>
+            </div>
+
+            <!-- Кнопки -->
+            <div class="button-group">
+                <button type="submit" class="btn-save" id="save-btn">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    Сохранить изменения
+                </button>
+                <a href="{{ url_for('profile', user_id=user.id) }}" class="btn-cancel">
+                    <i class="fa-solid fa-xmark"></i>
+                    Отмена
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Счетчики символов
+const usernameInput = document.getElementById('username');
+const usernameLength = document.getElementById('username-length');
+const bioInput = document.getElementById('bio');
+const bioLength = document.getElementById('bio-length');
+const saveBtn = document.getElementById('save-btn');
+let originalUsername = usernameInput.value;
+let originalEmail = document.getElementById('email').value;
+let originalBio = bioInput.value;
+
+// Обновление счетчика имени
+function updateUsernameCounter() {
+    const length = usernameInput.value.length;
+    usernameLength.textContent = length;
+    const counter = document.getElementById('username-counter');
+    if (length > 45) {
+        counter.classList.add('warning');
+    } else {
+        counter.classList.remove('warning');
+    }
+}
+
+// Обновление счетчика биографии
+function updateBioCounter() {
+    const length = bioInput.value.length;
+    bioLength.textContent = length;
+    const counter = document.getElementById('bio-counter');
+    if (length > 450) {
+        counter.classList.add('warning');
+    } else {
+        counter.classList.remove('warning');
+    }
+}
+
+// Валидация email
+function validateEmail() {
+    const email = document.getElementById('email').value;
+    const pattern = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+    if (!pattern.test(email)) {
+        document.getElementById('email').style.borderColor = 'var(--error)';
+        return false;
+    }
+    document.getElementById('email').style.borderColor = 'var(--glass-border)';
+    return true;
+}
+
+// Проверка изменений
+function hasChanges() {
+    const currentUsername = usernameInput.value;
+    const currentEmail = document.getElementById('email').value;
+    const currentBio = bioInput.value;
+    return currentUsername !== originalUsername || 
+           currentEmail !== originalEmail || 
+           currentBio !== originalBio;
+}
+
+// Показ уведомления
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = 'success-message';
+    notification.innerHTML = `<i class="fa-solid fa-${type === 'success' ? 'circle-check' : 'circle-xmark'}"></i> ${message}`;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Отправка формы (без модального окна)
+document.getElementById('edit-profile-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!validateEmail()) {
+        showNotification('Пожалуйста, введите корректный email', 'error');
+        return;
+    }
+    
+    if (!hasChanges()) {
+        showNotification('Изменения не обнаружены', 'error');
+        return;
+    }
+    
+    submitForm();
+});
+
+function submitForm() {
+    // Показываем индикатор загрузки
+    saveBtn.classList.add('loading');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Сохранение...';
+    
+    // Отправляем форму
+    const form = document.getElementById('edit-profile-form');
+    const formData = new FormData(form);
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }).then(response => {
+        if (response.redirected) {
+            window.location.href = response.url;
+        } else if (response.ok) {
+            showNotification('Профиль успешно обновлен!', 'success');
+            setTimeout(() => {
+                window.location.href = "{{ url_for('profile', user_id=user.id) }}";
+            }, 1000);
+        } else {
+            return response.json().then(data => {
+                throw new Error(data.message || 'Ошибка при сохранении');
+            });
+        }
+    }).catch(error => {
+        showNotification(error.message, 'error');
+        saveBtn.classList.remove('loading');
+        saveBtn.innerHTML = originalText;
+    });
+}
+
+// Live-обновление счетчиков
+usernameInput.addEventListener('input', updateUsernameCounter);
+bioInput.addEventListener('input', updateBioCounter);
+document.getElementById('email').addEventListener('input', validateEmail);
+
+// Инициализация счетчиков
+updateUsernameCounter();
+updateBioCounter();
+
+// Предупреждение при попытке уйти без сохранения
+let formChanged = false;
+
+function markAsChanged() {
+    if (!formChanged && hasChanges()) {
+        formChanged = true;
+        window.addEventListener('beforeunload', function(e) {
+            if (hasChanges()) {
+                e.preventDefault();
+                e.returnValue = 'У вас есть несохраненные изменения. Вы уверены, что хотите уйти?';
+                return e.returnValue;
+            }
+        });
+    }
+}
+
+usernameInput.addEventListener('input', markAsChanged);
+document.getElementById('email').addEventListener('input', markAsChanged);
+bioInput.addEventListener('input', markAsChanged);
+
+// Автосохранение в localStorage
+function autoSave() {
+    const autoSaveData = {
+        username: usernameInput.value,
+        email: document.getElementById('email').value,
+        bio: bioInput.value,
+        timestamp: Date.now()
+    };
+    localStorage.setItem('profile_edit_draft', JSON.stringify(autoSaveData));
+}
+
+// Восстановление автосохранения
+function loadAutoSave() {
+    const saved = localStorage.getItem('profile_edit_draft');
+    if (saved) {
+        const data = JSON.parse(saved);
+        const timeDiff = Date.now() - data.timestamp;
+        // Если прошло меньше часа
+        if (timeDiff < 3600000) {
+            if (confirm('Обнаружен черновик от ' + new Date(data.timestamp).toLocaleTimeString() + '. Восстановить?')) {
+                usernameInput.value = data.username;
+                document.getElementById('email').value = data.email;
+                bioInput.value = data.bio;
+                updateUsernameCounter();
+                updateBioCounter();
+                formChanged = true;
+                showNotification('Черновик восстановлен', 'success');
+            } else {
+                localStorage.removeItem('profile_edit_draft');
+            }
+        } else {
+            localStorage.removeItem('profile_edit_draft');
+        }
+    }
+}
+
+// Автосохранение каждые 30 секунд
+setInterval(() => {
+    if (hasChanges()) {
+        autoSave();
+        console.log('Автосохранение выполнено');
+    }
+}, 30000);
+
+// Загрузка черновика при загрузке страницы
+loadAutoSave();
+
+// Очистка черновика после успешной отправки
+window.addEventListener('beforeunload', function() {
+    if (!hasChanges()) {
+        localStorage.removeItem('profile_edit_draft');
+    }
+});
+
+// Поддержка Ctrl+Enter для сохранения
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('edit-profile-form').dispatchEvent(new Event('submit'));
+    }
+});
+
+// Анимация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    const card = document.querySelector('.edit-card');
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(20px)';
+    setTimeout(() => {
+        card.style.transition = 'all 0.5s ease';
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+    }, 100);
+});
+</script>
+{% endblock %}

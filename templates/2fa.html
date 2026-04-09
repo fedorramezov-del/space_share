@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Включение 2FA | SpaceShare{% endblock %}
+
+
+{% block content %}
+<div class="twofa-container">
+    <div class="twofa-card">
+        <!-- Иконка -->
+        <div class="twofa-icon">
+            <i class="fa-solid fa-shield-hal"></i>
+        </div>
+        
+        <!-- Заголовок -->
+        <div class="twofa-title">
+            <h2>Подтверждение входа</h2>
+            <p>Введите код из приложения аутентификатора</p>
+        </div>
+        
+        <!-- Таймер (для красоты) -->
+        <div class="timer">
+            <i class="fa-solid fa-clock"></i>
+            <span id="timer">30</span> сек
+        </div>
+        
+        <!-- Форма -->
+        <form method="POST" id="twofaForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="input-group">
+                <label>
+                    <i class="fa-solid fa-key"></i>
+                    6-значный код
+                </label>
+                <div class="code-input">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="text" 
+                           name="code" 
+                           required 
+                           placeholder="000000"
+                           maxlength="6"
+                           pattern="[0-9]{6}"
+                           inputmode="numeric"
+                           autocomplete="off"
+                           id="codeInput"
+                           autofocus>
+                </div>
+            </div>
+            
+            <button type="submit" class="verify-btn" id="submitBtn">
+                <i class="fa-solid fa-circle-check"></i>
+                Подтвердить
+            </button>
+        </form>
+        
+        <!-- Дополнительные ссылки -->
+        <div style="margin-top: 20px;">
+            <a href="{{ url_for('login') }}" class="back-link">
+                <i class="fa-solid fa-arrow-left"></i>
+                Вернуться к входу
+            </a>
+        </div>
+        
+        <!-- Подсказка -->
+        <div style="margin-top: 25px; padding: 15px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.1); border-radius: 12px; text-align: left;">
+            <div style="display: flex; gap: 12px;">
+                <i class="fa-solid fa-circle-question" style="color: var(--accent-color); font-size: 1.2rem;"></i>
+                <div style="color: var(--text-muted); font-size: 0.85rem;">
+                    <strong style="color: var(--accent-color);">Не получается войти?</strong>
+                    <p style="margin: 5px 0 0 0;">Код обновляется каждые 30 секунд. Убедитесь, что время на устройстве синхронизировано.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Таймер обратного отсчета
+let timeLeft = 30;
+const timerElement = document.getElementById('timer');
+const codeInput = document.getElementById('codeInput');
+const submitBtn = document.getElementById('submitBtn');
+
+function updateTimer() {
+    timeLeft--;
+    if (timeLeft < 0) {
+        timeLeft = 30;
+    }
+    timerElement.textContent = timeLeft;
+}
+
+// Запускаем таймер
+setInterval(updateTimer, 1000);
+
+// Автоматическая отправка при вводе 6 цифр
+codeInput.addEventListener('input', function() {
+    if (this.value.length === 6) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Проверка...';
+        document.getElementById('twofaForm').submit();
+    }
+});
+
+// Маска для ввода только цифр
+codeInput.addEventListener('keypress', function(e) {
+    const char = String.fromCharCode(e.which);
+    if (!/[0-9]/.test(char)) {
+        e.preventDefault();
+    }
+});
+
+// Анимация при фокусе
+codeInput.addEventListener('focus', function() {
+    this.parentElement.style.transform = 'scale(1.02)';
+});
+
+codeInput.addEventListener('blur', function() {
+    this.parentElement.style.transform = 'scale(1)';
+});
+</script>
+{% endblock %}

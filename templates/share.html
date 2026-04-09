@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+
+{% block title %}Публичная ссылка{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card share-card" style="max-width: 600px;">
+        
+        <!-- Заголовок -->
+        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px;">
+            <div style="
+                width: 60px;
+                height: 60px;
+                border-radius: 18px;
+                background: var(--accent-dark);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 2rem;
+                color: var(--accent-color);
+            ">
+                <i class="fa-solid fa-share-nodes"></i>
+            </div>
+            <div>
+                <h2 style="margin: 0; font-size: 1.8rem;">Публичная ссылка</h2>
+                <p style="color: var(--text-muted); margin: 5px 0 0 0;">
+                    <i class="fa-regular fa-clock"></i>
+                    Ссылка действительна 
+                    {% if stats and stats.expiry %}
+                        до {{ stats.expiry.strftime('%d.%m.%Y %H:%M') }}
+                    {% else %}
+                        бессрочно
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <!-- Превью файла -->
+        <div class="file-preview">
+            <div class="file-icon">
+                {% set ext = file.filename.split('.')[-1].lower() %}
+                {% if ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'] %}
+                    <i class="fa-solid fa-file-image"></i>
+                {% elif ext in ['mp4', 'avi', 'mov', 'wmv', 'mkv'] %}
+                    <i class="fa-solid fa-file-video"></i>
+                {% elif ext in ['mp3', 'wav', 'flac', 'aac'] %}
+                    <i class="fa-solid fa-file-audio"></i>
+                {% elif ext in ['pdf'] %}
+                    <i class="fa-solid fa-file-pdf"></i>
+                {% elif ext in ['doc', 'docx'] %}
+                    <i class="fa-solid fa-file-word"></i>
+                {% elif ext in ['stl', 'obj', 'gltf', 'glb', 'ply', 'fbx', '3mf', 'dae'] %}
+    <i class="fa-solid fa-cube"></i>
+                {% elif ext in ['xls', 'xlsx'] %}
+                    <i class="fa-solid fa-file-excel"></i>
+                {% elif ext in ['zip', 'rar', '7z', 'tar', 'gz'] %}
+                    <i class="fa-solid fa-file-zipper"></i>
+                {% else %}
+                    <i class="fa-solid fa-file"></i>
+                {% endif %}
+            </div>
+            <div class="file-info">
+                <div class="file-name">{{ file.filename }}</div>
+                <div class="file-meta">
+                    <span><i class="fa-regular fa-hard-drive"></i> {{ (file.file_size / 1024)|round(1) }} KB</span>
+                    <span><i class="fa-regular fa-calendar"></i> {{ file.upload_time.strftime('%d.%m.%Y') }}</span>
+                    <span><i class="fa-regular fa-eye"></i> {{ stats.downloads or 0 }} скачиваний</span>
+                </div>
+                {% if file.description %}
+                <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">
+                    <i class="fa-regular fa-note-sticky"></i> {{ file.description }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Настройки ссылки -->
+        <div class="share-settings" style="
+            background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 20px 0;
+        ">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                <div style="
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 8px;
+                    background: var(--accent-dark);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: var(--accent-color);
+                ">
+                    <i class="fa-solid fa-gear"></i>
+                </div>
+                <h3 style="margin: 0; color: var(--text-main); font-size: 1.1rem;">Настройки ссылки</h3>
+            </div>
+            
+            <form method="POST" style="display: flex; flex-direction: column; gap: 15px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <!-- Срок действия -->
+                    <div>
+                        <label style="
+                            display: block;
+                            color: var(--text-muted);
+                            font-size: 0.85rem;
+                            margin-bottom: 5px;
+                        ">
+                            <i class="fa-regular fa-clock"></i>
+                            Срок действия (дней)
+                        </label>
+                        <input type="number" 
+                               name="expiry_days" 
+                               min="0" 
+                               value="{% if stats.expiry %}{{ ((stats.expiry - now).days) }}{% else %}0{% endif %}"
+                               placeholder="0 - бессрочно"
+                               style="
+                            width: 100%;
+                            padding: 10px;
+                            border-radius: 8px;
+                            border: 1px solid var(--glass-border);
+                            background: rgba(0,0,0,0.2);
+                            color: var(--text-main);
+                        ">
+                        <small style="color: var(--text-muted); font-size: 0.7rem;">0 = бессрочно</small>
+                    </div>
+                    
+                    <!-- Лимит скачиваний -->
+                    <div>
+                        <label style="
+                            display: block;
+                            color: var(--text-muted);
+                            font-size: 0.85rem;
+                            margin-bottom: 5px;
+                        ">
+                            <i class="fa-solid fa-download"></i>
+                            Лимит скачиваний
+                        </label>
+                        <input type="number" 
+                               name="max_downloads" 
+                               min="0" 
+                               value="{{ stats.max_downloads or 0 }}"
+                               placeholder="0 - без лимита"
+                               style="
+                            width: 100%;
+                            padding: 10px;
+                            border-radius: 8px;
+                            border: 1px solid var(--glass-border);
+                            background: rgba(0,0,0,0.2);
+                            color: var(--text-main);
+                        ">
+                        <small style="color: var(--text-muted); font-size: 0.7rem;">0 = без лимита</small>
+                    </div>
+                </div>
+                
+                <!-- Кнопка обновления настроек -->
+                <button type="submit" style="
+                    background: var(--accent-color);
+                    color: #0b1120;
+                    border: none;
+                    border-radius: 30px;
+                    padding: 10px 20px;
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    transition: all 0.3s ease;
+                ">
+                    <i class="fa-solid fa-rotate"></i>
+                    Обновить настройки
+                </button>
+            </form>
+
+            <!-- Удаление ссылки -->
+            <form method="POST" action="{{ url_for('revoke_share', file_id=file.id) }}" style="margin-top: 10px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" onclick="return confirm('Удалить публичную ссылку?')" style="
+                    background: transparent;
+                    border: 1px solid var(--error);
+                    color: var(--error);
+                    border-radius: 30px;
+                    padding: 8px 16px;
+                    font-size: 0.85rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    width: 100%;
+                    transition: all 0.3s ease;
+                ">
+                    <i class="fa-regular fa-trash-can"></i>
+                    Удалить ссылку
+                </button>
+            </form>
+        </div>
+
+        <!-- Ссылка для шаринга -->
+        <div class="link-container">
+            <input 
+                id="share-link"
+                type="text"
+                value="{{ link }}"
+                readonly
+                class="link-input"
+            >
+            <button onclick="copyLink()" class="copy-btn" id="copyBtn">
+                <i class="fa-regular fa-copy"></i>
+                <span>Копировать</span>
+            </button>
+        </div>
+
+        <!-- Кнопки действий -->
+        <div class="action-buttons">
+            <a href="{{ url_for('view_file', file_id=file.id) }}" target="_blank" class="action-btn primary">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                Открыть
+            </a>
+            <a href="{{ url_for('download_file', file_id=file.id) }}" class="action-btn secondary">
+                <i class="fa-solid fa-download"></i>
+                Скачать
+            </a>
+            <a href="{% if current_user %}{{ url_for('profile', user_id=current_user.id) }}{% else %}/{% endif %}" class="action-btn secondary">
+                <i class="fa-solid fa-arrow-left"></i>
+                Назад
+            </a>
+        </div>
+
+
+        <!-- QR код (если есть) -->
+        {% if qr_code %}
+        <div class="share-options">
+            <div class="share-title">
+                <i class="fa-solid fa-qrcode"></i>
+                QR код для скачивания
+            </div>
+            <div class="qr-container">
+                <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code">
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Статистика ссылки с лимитами -->
+        <div style="
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            text-align: center;
+        ">
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent-color);">
+                    {{ stats.clicks or 0 }}
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.8rem;">Переходов</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent-color);">
+                    {{ stats.downloads or 0 }}
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.8rem;">Скачиваний</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent-color);">
+                    {% if stats.max_downloads %}
+                        {{ stats.max_downloads - stats.downloads }}
+                    {% else %}
+                        ∞
+                    {% endif %}
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.8rem;">Осталось</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent-color);">
+                    {% if stats.expiry %}
+                        {{ ((stats.expiry - now).days) if (stats.expiry - now).days > 0 else 0 }}
+                    {% else %}
+                        ∞
+                    {% endif %}
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.8rem;">Дней осталось</div>
+            </div>
+        </div>
+
+        <!-- Сообщение об успешном копировании -->
+        <div id="notification" class="notification">
+            <i class="fa-regular fa-circle-check"></i>
+            Ссылка скопирована в буфер обмена!
+        </div>
+
+    </div>
+</div>
+
+<script>
+let copyTimeout;
+
+function copyLink() {
+    const input = document.getElementById("share-link");
+    const copyBtn = document.getElementById("copyBtn");
+    const notification = document.getElementById("notification");
+    
+    // Выделяем текст
+    input.select();
+    input.setSelectionRange(0, 99999);
+    
+    // Копируем в буфер обмена
+    navigator.clipboard.writeText(input.value).then(() => {
+        // Меняем кнопку
+        copyBtn.classList.add('copied');
+        const originalHtml = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="fa-regular fa-check"></i> Скопировано!';
+        
+        // Показываем уведомление
+        notification.classList.add('show');
+        
+        // Возвращаем кнопку в исходное состояние
+        clearTimeout(copyTimeout);
+        copyTimeout = setTimeout(() => {
+            copyBtn.classList.remove('copied');
+            copyBtn.innerHTML = originalHtml;
+            notification.classList.remove('show');
+        }, 2000);
+        
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        alert('Не удалось скопировать ссылку');
+    });
+}
+
+// Автоматическое выделение текста при клике на поле
+document.getElementById('share-link').addEventListener('click', function() {
+    this.select();
+});
+
+// Поддержка горячих клавиш
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'c') {
+        const input = document.getElementById('share-link');
+        if (document.activeElement === input) {
+            e.preventDefault();
+            copyLink();
+        }
+    }
+});
+
+// Анимация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    const card = document.querySelector('.share-card');
+    card.style.opacity = '0';
+    setTimeout(() => {
+        card.style.opacity = '1';
+    }, 100);
+});
+</script>
+{% endblock %}

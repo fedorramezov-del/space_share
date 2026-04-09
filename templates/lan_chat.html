@@ -1,0 +1,1758 @@
+{% extends "base.html" %}
+{% block title %}LAN чат{% endblock %}
+
+{% block content %}
+<style>
+/* ========== ОСНОВНЫЕ СТИЛИ ========== */
+* {
+    box-sizing: border-box;
+}
+
+.lan-chat {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px);
+    background: var(--accent-dark);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* Заголовок */
+.lan-chat-header {
+    padding: 15px 20px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+/* Вкладки */
+.chat-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 10px 15px;
+    background: rgba(0,0,0,0.15);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.chat-tab {
+    padding: 8px 18px;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(255,255,255,0.05);
+    font-size: 0.9rem;
+}
+
+.chat-tab:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.chat-tab.active {
+    background: var(--accent-color);
+    color: #0b1120;
+}
+
+.chat-tab .unread-badge {
+    background: var(--error);
+    color: white;
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    margin-left: 8px;
+}
+
+/* Список личных чатов */
+.dm-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.dm-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid transparent;
+}
+
+.dm-item:hover {
+    background: rgba(var(--accent-rgb), 0.1);
+    transform: translateX(5px);
+}
+
+.dm-item.active {
+    background: rgba(var(--accent-rgb), 0.15);
+    border-left: 3px solid var(--accent-color);
+}
+
+.dm-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 15px;
+}
+
+.dm-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.dm-name {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.dm-online {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #22c55e;
+    display: inline-block;
+}
+
+.dm-offline {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6b7280;
+    display: inline-block;
+}
+
+.dm-last-message {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dm-unread {
+    background: var(--error);
+    color: white;
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.dm-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-left: 10px;
+}
+
+/* Контейнер сообщений */
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Сообщение */
+.message {
+    display: flex;
+    gap: 12px;
+    animation: fadeIn 0.3s ease;
+}
+
+.message-own {
+    flex-direction: row-reverse;
+}
+
+.message-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.message-content {
+    max-width: 70%;
+    background: rgba(255,255,255,0.05);
+    border-radius: 18px;
+    padding: 10px 15px;
+}
+
+.message-own .message-content {
+    background: var(--accent-hover);
+    color: #0b1120;
+}
+
+.message-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+    font-size: 0.8rem;
+}
+
+.message-username {
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--accent-color);
+}
+
+.message-own .message-username {
+    color: #0b1120;
+}
+
+.message-time {
+    color: #0b1120;
+    font-size: 0.7rem;
+}
+
+.message-text {
+    word-wrap: break-word;
+    line-height: 1.4;
+}
+
+.message-text a {
+    color: inherit;
+}
+
+.message-text strong {
+    font-weight: bold;
+}
+
+.message-text em {
+    font-style: italic;
+}
+
+.message-text code {
+    background: rgba(0,0,0,0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+.message-text del {
+    text-decoration: line-through;
+}
+
+/* Личные сообщения */
+.message-private {
+    border-left: none;
+    background: transparent;
+}
+
+.private-badge {
+    display: none;
+}
+
+/* Упоминания */
+.mention {
+    background: rgba(var(--accent-rgb), 0.3);
+    border-radius: 12px;
+    padding: 2px 6px;
+    color: var(--accent-color);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.mention-self {
+    background: rgba(255, 193, 7, 0.3);
+    color: #ffc107;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4); }
+    50% { box-shadow: 0 0 0 5px rgba(255, 193, 7, 0); }
+}
+
+/* Ответы */
+.message-reply {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    border-left: 2px solid var(--accent-color);
+    padding-left: 8px;
+    margin-bottom: 5px;
+    cursor: pointer;
+}
+
+/* Поле ввода */
+.chat-input {
+    padding: 15px 20px;
+    background: rgba(0,0,0,0.2);
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    gap: 10px;
+    position: relative;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 12px 18px;
+    border: 1px solid var(--glass-border);
+    border-radius: 30px;
+    background: rgba(0,0,0,0.2);
+    color: var(--text-main);
+    outline: none;
+}
+
+.chat-input input:focus {
+    border-color: var(--accent-color);
+}
+
+.chat-input button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 30px;
+    background: var(--accent-color);
+    color: #0b1120;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.chat-input button:hover {
+    opacity: 0.9;
+}
+
+/* Эмодзи пикер */
+.emoji-picker {
+    position: absolute;
+    bottom: 100%;
+    left: 20px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+    z-index: 100;
+    margin-bottom: 10px;
+}
+
+.emoji-item {
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 5px;
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.emoji-item:hover {
+    transform: scale(1.2);
+}
+
+/* Предложения упоминаний */
+.mention-suggestions {
+    position: absolute;
+    bottom: 100%;
+    left: 20px;
+    right: 80px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+}
+
+.mention-suggestion {
+    padding: 10px 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.2s;
+}
+
+.mention-suggestion:hover,
+.mention-suggestion.selected {
+    background: rgba(var(--accent-rgb), 0.2);
+}
+
+.mention-suggestion img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+
+/* Индикатор печати */
+.typing-indicator {
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.typing-dots {
+    display: flex;
+    gap: 3px;
+}
+
+.typing-dots span {
+    width: 6px;
+    height: 6px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+}
+
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-8px); opacity: 1; }
+}
+
+/* Индикатор загрузки */
+.loading-indicator {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--text-muted);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Индикатор новых сообщений */
+.new-messages-btn {
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
+    background: var(--accent-color);
+    color: #0b1120;
+    padding: 10px 20px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: 600;
+    z-index: 100;
+    animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+/* Контекстное меню */
+.context-menu {
+    position: fixed;
+    background: rgba(20, 20, 30, 0.98);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    min-width: 180px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.context-menu-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.2s;
+}
+
+.context-menu-item:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.context-menu-item.delete {
+    color: var(--error);
+}
+
+.context-menu-divider {
+    height: 1px;
+    background: var(--glass-border);
+    margin: 5px 0;
+}
+
+/* Модальные окна */
+.custom-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 25px;
+    min-width: 300px;
+    max-width: 500px;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+}
+
+.modal-btn.primary {
+    background: var(--accent-color);
+    color: #0b1120;
+}
+
+.modal-btn.delete {
+    background: var(--error);
+    color: white;
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+</style>
+
+<div class="lan-chat">
+    <!-- Заголовок -->
+    <div class="lan-chat-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <i class="fa-regular fa-message"></i>
+                <strong id="chat-title">Общий чат</strong>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="openSearchModal()" class="icon-btn" title="Поиск (Ctrl+K)">
+                    <i class="fa-solid fa-search"></i>
+                </button>
+                <button onclick="toggleEmojiPicker()" class="icon-btn" title="Эмодзи">
+                    <i class="fa-regular fa-face-smile"></i>
+                </button>
+                <button onclick="clearLocalChat()" class="icon-btn" title="Очистить">
+                    <i class="fa-regular fa-trash-can"></i>
+                </button>
+                <button onclick="toggleTheme()" class="icon-btn" title="Тема">
+                    <i class="fa-regular fa-sun"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Вкладки -->
+    <div class="chat-tabs">
+        <div class="chat-tab active" data-chat="public" onclick="switchToPublicChat()">
+            <i class="fa-regular fa-hashtag"></i> Общий чат
+        </div>
+        <div class="chat-tab" data-chat="dm" onclick="showDMList()">
+            <i class="fa-regular fa-envelope"></i> Личные сообщения
+            <span id="dm-total-badge" class="unread-badge" style="display: none;">0</span>
+        </div>
+    </div>
+
+    <!-- Список личных чатов -->
+    <div id="dm-list" class="dm-list" style="display: none;"></div>
+
+    <!-- Контейнер сообщений -->
+    <div id="messages-container" class="chat-messages" style="display: flex;"></div>
+
+    <!-- Индикатор загрузки -->
+    <div id="loading-indicator" class="loading-indicator" style="display: none;">
+        <div class="loading-spinner"></div> Загрузка истории...
+    </div>
+
+    <!-- Индикатор печати -->
+    <div id="typing-indicator" class="typing-indicator" style="display: none;">
+        <div class="typing-dots">
+            <span></span><span></span><span></span>
+        </div>
+        <span id="typing-text">печатает...</span>
+    </div>
+
+    <!-- Превью ответа -->
+    <div id="reply-preview" style="display: none; padding: 10px 20px; background: rgba(0,0,0,0.2); border-top: 1px solid var(--glass-border);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.8rem;">
+                <i class="fa-solid fa-reply"></i> Ответ: <span id="reply-text"></span>
+            </span>
+            <button onclick="cancelReply()" style="background: none; border: none; color: var(--error); cursor: pointer;">×</button>
+        </div>
+    </div>
+
+    <!-- Поле ввода -->
+    <div class="chat-input">
+        <input type="text" id="message-input" placeholder="Введите сообщение..." autocomplete="off">
+        <i class="fa-sold fa-send"></i>
+        <button onclick="sendMessage()">Отправить <span style="font-size: 0.7rem;"></span></button>
+    </div>
+
+    <!-- Предложения упоминаний -->
+    <div id="mention-suggestions" class="mention-suggestions" style="display: none;"></div>
+</div>
+
+<!-- Модальные окна -->
+<div id="edit-modal" class="custom-modal">
+    <div class="modal-content">
+        <h4>✎ Редактировать сообщение</h4>
+        <textarea id="edit-textarea" rows="3" style="width: 100%; margin: 15px 0; padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.2); color: var(--text-main); border: 1px solid var(--glass-border);"></textarea>
+        <div class="modal-buttons">
+            <button onclick="closeEditModal()" class="modal-btn">Отмена</button>
+            <button onclick="submitEdit()" class="modal-btn primary">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<div id="confirm-modal" class="custom-modal">
+    <div class="modal-content">
+        <h4>🗑 Удалить сообщение</h4>
+        <p>Вы уверены, что хотите удалить это сообщение?</p>
+        <div class="modal-buttons">
+            <button onclick="closeConfirmModal()" class="modal-btn">Отмена</button>
+            <button onclick="confirmDelete()" class="modal-btn delete">Удалить</button>
+        </div>
+    </div>
+</div>
+
+<div id="search-modal" class="custom-modal">
+    <div class="modal-content">
+        <h4>🔍 Поиск в чате</h4>
+        <input type="text" id="search-input" placeholder="Поиск..." style="width: 100%; padding: 10px; margin: 15px 0; border-radius: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: var(--text-main);">
+        <div id="search-results" style="max-height: 300px; overflow-y: auto;"></div>
+        <div class="modal-buttons">
+            <button onclick="closeSearchModal()" class="modal-btn">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/socket.io.js') }}"></script>
+<script>
+// ============= ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =============
+let socket = null;
+let currentChat = 'public';
+let currentDMUser = null;
+let replyTo = null;
+let editId = null;
+let deleteId = null;
+let currentPage = 0;
+let hasMore = true;
+let loading = false;
+let allUsers = [];
+let typingTimeout = null;
+let mentionIndex = -1;
+let currentMentionStart = -1;
+let onlineUsers = new Set();
+let dmList = [];
+let sendingMessage = false;
+let tempMessageId = null;
+let renderedMessages = new Set(); // Для предотвращения дублирования
+let notificationPermission = false;
+let scrollTimeout = null; // Для debounce скролла
+
+// Кэшированные DOM элементы
+const DOM = {
+    messagesContainer: document.getElementById('messages-container'),
+    messageInput: document.getElementById('message-input'),
+    chatTitle: document.getElementById('chat-title'),
+    dmList: document.getElementById('dm-list'),
+    typingIndicator: document.getElementById('typing-indicator'),
+    typingText: document.getElementById('typing-text'),
+    loadingIndicator: document.getElementById('loading-indicator'),
+    replyPreview: document.getElementById('reply-preview'),
+    replyText: document.getElementById('reply-text'),
+    mentionSuggestions: document.getElementById('mention-suggestions')
+};
+
+// ============= ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =============
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function getUserTimezone() {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+async function saveUserTimezone() {
+    const timezone = getUserTimezone();
+    try {
+        await fetch('/api/set_timezone', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ timezone: timezone })
+        });
+    } catch (e) {
+        console.error('Failed to save timezone:', e);
+    }
+}
+
+function scrollToBottom() {
+    if (DOM.messagesContainer) DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+}
+
+function isScrolledToBottom() {
+    return DOM.messagesContainer.scrollHeight - DOM.messagesContainer.scrollTop - DOM.messagesContainer.clientHeight < 100;
+}
+
+let newMessagesBtn = null;
+
+function showNewMessagesButton() {
+    if (newMessagesBtn) return;
+    newMessagesBtn = document.createElement('div');
+    newMessagesBtn.className = 'new-messages-btn';
+    newMessagesBtn.innerHTML = '↓ Новые сообщения';
+    newMessagesBtn.onclick = () => {
+        scrollToBottom();
+        if (newMessagesBtn) newMessagesBtn.remove();
+        newMessagesBtn = null;
+    };
+    document.body.appendChild(newMessagesBtn);
+    setTimeout(() => {
+        if (newMessagesBtn) {
+            newMessagesBtn.remove();
+            newMessagesBtn = null;
+        }
+    }, 5000);
+}
+
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    const bgColor = type === 'success' ? '#22c55e' : (type === 'error' ? '#ef4444' : '#3b82f6');
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: ${bgColor};
+        color: white;
+        padding: 12px 24px;
+        border-radius: 30px;
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// ============= УЛУЧШЕНИЕ 1: Безопасные упоминания (XSS защита) =============
+function processMentions(text) {
+    const currentId = {{ current_user.id|tojson }};
+    return text.replace(/@(\w+)/g, (match, username) => {
+        const user = allUsers.find(u => u.username === username);
+        if (user) {
+            const isSelf = user.id === currentId;
+            return `<span class="mention ${isSelf ? 'mention-self' : ''}" 
+                            data-username="${escapeHtml(username)}" 
+                            onclick="highlightUserMessages('${escapeHtml(username)}')">
+                    @${escapeHtml(username)}
+                    </span>`;
+        }
+        return match;
+    });
+}
+
+// ============= УЛУЧШЕНИЕ 10: Markdown поддержка =============
+function renderMarkdown(text) {
+    let html = escapeHtml(text);
+    
+    // **жирный**
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // *курсив*
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // `код`
+    html = html.replace(/`(.*?)`/g, '<code>$1</code>');
+    // ~~зачеркнутый~~
+    html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
+    
+    return html;
+}
+
+function highlightUserMessages(username) {
+    const messages = document.querySelectorAll('.message');
+    let found = false;
+    messages.forEach(msg => {
+        if (msg.dataset.username === username) {
+            if (!found) {
+                msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                found = true;
+            }
+            msg.style.background = 'rgba(var(--accent-rgb), 0.15)';
+            setTimeout(() => msg.style.background = '', 1500);
+        }
+    });
+    if (!found) showToast(`Сообщения от ${username} не найдены`, 'info');
+}
+
+// ============= УЛУЧШЕНИЕ 9: Эмодзи поддержка =============
+let emojiPickerVisible = false;
+let emojiPicker = null;
+
+function toggleEmojiPicker() {
+    if (!emojiPicker) {
+        createEmojiPicker();
+    }
+    
+    if (emojiPickerVisible) {
+        emojiPicker.style.display = 'none';
+        emojiPickerVisible = false;
+    } else {
+        emojiPicker.style.display = 'grid';
+        emojiPickerVisible = true;
+        // Закрыть при клике вне
+        setTimeout(() => {
+            document.addEventListener('click', function closePicker(e) {
+                if (!emojiPicker.contains(e.target) && e.target !== document.querySelector('.icon-btn[title="Эмодзи"]')) {
+                    emojiPicker.style.display = 'none';
+                    emojiPickerVisible = false;
+                    document.removeEventListener('click', closePicker);
+                }
+            });
+        }, 0);
+    }
+}
+
+function createEmojiPicker() {
+    emojiPicker = document.createElement('div');
+    emojiPicker.className = 'emoji-picker';
+    emojiPicker.style.display = 'none';
+    
+    const emojis = ['😊', '😂', '❤️', '👍', '🔥', '🎉', '😢', '😡', '🥳', '🤔', '👀', '💪', '🙏', '✨', '⭐', '💡'];
+    emojiPicker.innerHTML = emojis.map(emoji => 
+        `<span class="emoji-item" onclick="insertEmoji('${emoji}')">${emoji}</span>`
+    ).join('');
+    
+    document.body.appendChild(emojiPicker);
+    
+    // Позиционирование
+    const button = document.querySelector('.icon-btn[title="Эмодзи"]');
+    const rect = button.getBoundingClientRect();
+    emojiPicker.style.position = 'absolute';
+    emojiPicker.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+    emojiPicker.style.left = rect.left + 'px';
+}
+
+function insertEmoji(emoji) {
+    const input = DOM.messageInput;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const text = input.value;
+    input.value = text.substring(0, start) + emoji + text.substring(end);
+    input.focus();
+    input.selectionStart = input.selectionEnd = start + emoji.length;
+    toggleEmojiPicker();
+}
+
+// ============= ОБРАБОТКА УПОМИНАНИЙ =============
+function handleMentionInput(e) {
+    const input = e.target;
+    const value = input.value;
+    const pos = input.selectionStart;
+    const before = value.substring(0, pos);
+    const lastAt = before.lastIndexOf('@');
+    
+    if (lastAt !== -1 && pos - lastAt > 1) {
+        const search = before.substring(lastAt + 1);
+        if (!search.includes(' ')) {
+            currentMentionStart = lastAt;
+            showMentionSuggestions(search, input);
+            return;
+        }
+    }
+    hideMentions();
+}
+
+function showMentionSuggestions(search, input) {
+    const filtered = allUsers.filter(u => 
+        u.username.toLowerCase().includes(search.toLowerCase()) &&
+        u.id !== {{ current_user.id|tojson }}
+    );
+    
+    if (filtered.length === 0) {
+        hideMentions();
+        return;
+    }
+    
+    const rect = input.getBoundingClientRect();
+    
+    DOM.mentionSuggestions.innerHTML = filtered.map((user, i) => `
+        <div class="mention-suggestion" data-username="${user.username}" data-index="${i}">
+            <img src="${user.avatar || '/static/default_avatar.png'}" onerror="this.src='/static/default_avatar.png'">
+            <span>${escapeHtml(user.username)}</span>
+        </div>
+    `).join('');
+    
+    DOM.mentionSuggestions.style.display = 'block';
+    DOM.mentionSuggestions.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+    DOM.mentionSuggestions.style.left = rect.left + 'px';
+    DOM.mentionSuggestions.style.width = (rect.width - 60) + 'px';
+    
+    document.querySelectorAll('.mention-suggestion').forEach(el => {
+        el.onclick = () => insertMention(el.dataset.username);
+    });
+    
+    mentionIndex = -1;
+}
+
+function insertMention(username) {
+    const value = DOM.messageInput.value;
+    const pos = DOM.messageInput.selectionStart;
+    
+    const before = value.substring(0, currentMentionStart);
+    const after = value.substring(pos);
+    DOM.messageInput.value = before + `@${username} ` + after;
+    DOM.messageInput.focus();
+    DOM.messageInput.selectionStart = DOM.messageInput.selectionEnd = before.length + username.length + 2;
+    hideMentions();
+}
+
+function hideMentions() {
+    if (DOM.mentionSuggestions) DOM.mentionSuggestions.style.display = 'none';
+    currentMentionStart = -1;
+    mentionIndex = -1;
+}
+
+function handleMentionKeydown(e) {
+    const suggestions = document.querySelectorAll('.mention-suggestion');
+    if (suggestions.length === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        mentionIndex = (mentionIndex + 1) % suggestions.length;
+        updateMentionSelection();
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        mentionIndex = (mentionIndex - 1 + suggestions.length) % suggestions.length;
+        updateMentionSelection();
+    } else if (e.key === 'Enter' && mentionIndex >= 0) {
+        e.preventDefault();
+        insertMention(suggestions[mentionIndex].dataset.username);
+    } else if (e.key === 'Escape') {
+        hideMentions();
+    }
+}
+
+function updateMentionSelection() {
+    document.querySelectorAll('.mention-suggestion').forEach((el, i) => {
+        el.classList.toggle('selected', i === mentionIndex);
+    });
+}
+
+// ============= ОТВЕТЫ =============
+function setReply(text, username) {
+    replyTo = text;
+    DOM.replyPreview.style.display = 'block';
+    DOM.replyText.innerHTML = username ? `<strong>${escapeHtml(username)}</strong>: ${escapeHtml(text.substring(0, 100))}` : escapeHtml(text.substring(0, 100));
+    DOM.messageInput.focus();
+}
+
+function cancelReply() {
+    replyTo = null;
+    DOM.replyPreview.style.display = 'none';
+    DOM.replyText.innerHTML = '';
+}
+
+// ============= УЛУЧШЕНИЕ 7: Уведомления =============
+async function initNotifications() {
+    if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+            notificationPermission = true;
+        } else if (Notification.permission !== 'denied') {
+            const permission = await Notification.requestPermission();
+            notificationPermission = permission === 'granted';
+        }
+    }
+}
+
+function showNotification(title, body, icon) {
+    if (!notificationPermission || document.hasFocus()) return;
+    
+    try {
+        const notification = new Notification(title, {
+            body: body,
+            icon: icon || '/static/default_avatar.png',
+            tag: 'chat-message',
+            silent: false
+        });
+        
+        notification.onclick = () => {
+            window.focus();
+            notification.close();
+        };
+        
+        setTimeout(() => notification.close(), 5000);
+    } catch (e) {
+        console.error('Notification error:', e);
+    }
+}
+
+// ============= СОЗДАНИЕ ЭЛЕМЕНТА СООБЩЕНИЯ =============
+function createMessageElement(msg) {
+    const div = document.createElement('div');
+    div.className = 'message';
+    if (msg.user_id === {{ current_user.id|tojson }}) div.classList.add('message-own');
+    if (msg.is_private) div.classList.add('message-private');
+    
+    div.setAttribute('data-id', msg.id);
+    div.setAttribute('data-user-id', msg.user_id);
+    div.setAttribute('data-username', msg.username);
+    div.setAttribute('data-text', msg.message);
+    div.oncontextmenu = (e) => showContextMenu(e, msg);
+    
+    const avatar = msg.avatar || '/static/default_avatar.png';
+    const time = msg.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const messageText = processMentions(renderMarkdown(msg.message));
+    
+    div.innerHTML = `
+        <img src="${avatar}" class="message-avatar" alt="${escapeHtml(msg.username)}">
+        <div class="message-content">
+            <div class="message-header">
+                <a href="/profile/${msg.user_id}" class="message-username">${escapeHtml(msg.username)}</a>
+                <span class="message-time">${time}</span>
+                ${msg.edited ? '<span style="font-size:0.7rem; opacity:0.6;">✏️ ред.</span>' : ''}
+                ${msg.is_temp ? '<span style="font-size:0.7rem; opacity:0.6; margin-left:5px;">⏳ отправка...</span>' : ''}
+            </div>
+            ${msg.reply ? `<div class="message-reply" onclick="setReply('${escapeHtml(msg.reply)}', '${escapeHtml(msg.username)}')">↩️ ${escapeHtml(msg.reply.substring(0, 100))}</div>` : ''}
+            <div class="message-text">${messageText}</div>
+        </div>
+    `;
+    return div;
+}
+
+// ============= УЛУЧШЕНИЕ 3: Предотвращение дублирования =============
+function addMessageToChat(data) {
+    // Проверяем на дублирование
+    if (renderedMessages.has(data.id)) return;
+    renderedMessages.add(data.id);
+    
+    if (DOM.messagesContainer.children.length === 1 && DOM.messagesContainer.children[0].innerText?.includes('Нет сообщений')) {
+        DOM.messagesContainer.innerHTML = '';
+    }
+    
+    if (document.querySelector(`.message[data-id="${data.id}"]`)) return;
+    
+    DOM.messagesContainer.appendChild(createMessageElement(data));
+    
+    // Показываем уведомление если нужно
+    if (data.user_id !== {{ current_user.id|tojson }} && currentChat !== 'dm') {
+        showNotification(`${data.username}`, data.message.substring(0, 100), data.avatar);
+    }
+    
+    if (isScrolledToBottom() || data.user_id === {{ current_user.id|tojson }}) {
+        scrollToBottom();
+    } else {
+        showNewMessagesButton();
+    }
+}
+
+function updateMessageInChat(id, newMessage) {
+    const msgEl = document.querySelector(`.message[data-id="${id}"]`);
+    if (msgEl) {
+        const textDiv = msgEl.querySelector('.message-text');
+        if (textDiv) {
+            textDiv.innerHTML = processMentions(renderMarkdown(newMessage));
+            msgEl.setAttribute('data-text', newMessage);
+        }
+    }
+}
+
+function removeMessageFromChat(id) {
+    const msgEl = document.querySelector(`.message[data-id="${id}"]`);
+    if (msgEl) {
+        renderedMessages.delete(id);
+        msgEl.remove();
+    }
+}
+
+// ============= ЗАГРУЗКА ИСТОРИИ =============
+async function loadUsers() {
+    try {
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        allUsers = data.users;
+    } catch (e) {
+        console.error('Failed to load users:', e);
+    }
+}
+
+async function loadChatHistory(reset = true) {
+    if (loading) return;
+    loading = true;
+    
+    if (reset) {
+        currentPage = 0;
+        hasMore = true;
+        renderedMessages.clear(); // Очищаем кэш ID сообщений
+        DOM.messagesContainer.innerHTML = '';
+    }
+    
+    if (!reset) DOM.loadingIndicator.style.display = 'block';
+    
+    try {
+        let url = `/api/chat/history?chat_type=${currentChat}&page=${currentPage}&limit=50`;
+        if (currentChat === 'dm' && currentDMUser) url += `&user_id=${currentDMUser}`;
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (data.messages?.length > 0) {
+            if (reset) {
+                renderMessages(data.messages);
+            } else {
+                prependMessages(data.messages);
+            }
+            hasMore = data.has_more;
+            currentPage++;
+        } else {
+            hasMore = false;
+            if (reset && currentChat === 'dm') {
+                DOM.messagesContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">📭 Нет сообщений. Напишите что-нибудь!</div>';
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load history:', e);
+        showToast('Ошибка загрузки истории', 'error');
+    } finally {
+        loading = false;
+        DOM.loadingIndicator.style.display = 'none';
+    }
+}
+
+function renderMessages(messages) {
+    DOM.messagesContainer.innerHTML = '';
+    messages.forEach(msg => {
+        renderedMessages.add(msg.id);
+        DOM.messagesContainer.appendChild(createMessageElement(msg));
+    });
+    scrollToBottom();
+}
+
+function prependMessages(messages) {
+    const firstChild = DOM.messagesContainer.firstChild;
+    const oldHeight = DOM.messagesContainer.scrollHeight;
+    
+    messages.reverse().forEach(msg => {
+        renderedMessages.add(msg.id);
+        DOM.messagesContainer.insertBefore(createMessageElement(msg), firstChild);
+    });
+    
+    DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight - oldHeight;
+}
+
+// ============= УЛУЧШЕНИЕ 4: Обработка отключения WebSocket =============
+function initSocket() {
+    socket = io({
+        path: '/socket.io',
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        auth: { timezone: getUserTimezone() }
+    });
+    
+    socket.on('connect', () => {
+        console.log('WebSocket connected');
+        showToast('Соединение установлено', 'success');
+    });
+    
+    socket.on('disconnect', (reason) => {
+        console.log('Disconnected:', reason);
+        showToast('Потеря соединения. Переподключение...', 'warning');
+        if (reason === 'io server disconnect') {
+            socket.connect();
+        }
+    });
+    
+    socket.on('reconnect', () => {
+        showToast('Соединение восстановлено', 'success');
+        loadChatHistory(true);
+    });
+    
+    socket.on('reconnect_error', () => {
+        showToast('Не удалось восстановить соединение', 'error');
+    });
+    
+    socket.on('message', (data) => {
+        if (data.user_id === {{ current_user.id|tojson }} && tempMessageId) {
+            const tempMsg = document.querySelector(`.message[data-id="${tempMessageId}"]`);
+            if (tempMsg) {
+                tempMsg.setAttribute('data-id', data.id);
+                tempMsg.removeAttribute('data-is-temp');
+                const statusSpan = tempMsg.querySelector('.message-header span:last-child');
+                if (statusSpan && statusSpan.innerText === '⏳ отправка...') statusSpan.remove();
+                renderedMessages.delete(tempMessageId);
+                renderedMessages.add(data.id);
+                tempMessageId = null;
+                return;
+            }
+        }
+        if (!document.querySelector(`.message[data-id="${data.id}"]`)) {
+            handleNewMessage(data);
+        }
+    });
+    
+    socket.on('message_edited', (data) => updateMessageInChat(data.id, data.message));
+    socket.on('message_deleted', (data) => removeMessageFromChat(data.id));
+    socket.on('typing', (data) => handleTyping(data));
+    socket.on('typing_stopped', (data) => {
+        if (data.user_id !== {{ current_user.id|tojson }}) {
+            DOM.typingIndicator.style.display = 'none';
+        }
+    });
+    socket.on('user_online_update', (data) => {
+        onlineUsers = new Set(data.users);
+        if (DOM.dmList.style.display === 'block') renderDMList();
+    });
+}
+
+function handleNewMessage(data) {
+    const isOwn = data.user_id === {{ current_user.id|tojson }};
+    let shouldAdd = false;
+    
+    if (currentChat === 'public' && !data.is_private) {
+        shouldAdd = true;
+    } else if (currentChat === 'dm' && data.is_private) {
+        if (currentDMUser === data.user_id || (isOwn && currentDMUser === data.recipient_id)) {
+            shouldAdd = true;
+        }
+    }
+    
+    if (shouldAdd) addMessageToChat(data);
+    if (data.is_private) loadDMList();
+}
+
+// ============= УЛУЧШЕНИЕ 6: Retry механизм для отправки =============
+async function sendMessageWithRetry(data, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            socket.emit('send_message', data);
+            return true;
+        } catch (e) {
+            console.error(`Send attempt ${i + 1} failed:`, e);
+            if (i === retries - 1) {
+                showToast('Ошибка отправки сообщения', 'error');
+                return false;
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+        }
+    }
+    return false;
+}
+
+function sendMessage() {
+    const text = DOM.messageInput.value.trim();
+    if (!text || !socket || sendingMessage) return;
+    
+    sendingMessage = true;
+    
+    // Создаем временное сообщение
+    tempMessageId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    const tempMessage = {
+        id: tempMessageId,
+        user_id: {{ current_user.id|tojson }},
+        username: '{{ current_user.username }}',
+        message: text,
+        reply: replyTo,
+        avatar: '{{ url_for("avatar", filename=current_user.avatar) if current_user.avatar else url_for("static", filename="default_avatar.png") }}',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        is_private: currentChat === 'dm',
+        recipient_id: currentDMUser,
+        is_temp: true
+    };
+    
+    addMessageToChat(tempMessage);
+    
+    sendMessageWithRetry({
+        message: text,
+        reply: replyTo,
+        is_private: currentChat === 'dm',
+        recipient_id: currentDMUser,
+        timezone: getUserTimezone()
+    });
+    
+    DOM.messageInput.value = '';
+    cancelReply();
+    hideMentions();
+    if (typingTimeout) clearTimeout(typingTimeout);
+    
+    setTimeout(() => { sendingMessage = false; }, 500);
+}
+
+function onTyping() {
+    if (socket) {
+        socket.emit('typing', {
+            is_private: currentChat === 'dm',
+            recipient_id: currentDMUser
+        });
+        if (typingTimeout) clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.emit('stop_typing', {
+                is_private: currentChat === 'dm',
+                recipient_id: currentDMUser
+            });
+        }, 1000);
+    }
+}
+
+function handleTyping(data) {
+    if (data.user_id === {{ current_user.id|tojson }}) return;
+    if (data.stopped) {
+        DOM.typingIndicator.style.display = 'none';
+        return;
+    }
+    
+    if (currentChat === 'public' && !data.is_private) {
+        showTyping(data.username);
+    } else if (currentChat === 'dm' && data.is_private && currentDMUser === data.user_id) {
+        showTyping(data.username);
+    }
+}
+
+function showTyping(username) {
+    DOM.typingText.textContent = `${escapeHtml(username)} печатает...`;
+    DOM.typingIndicator.style.display = 'flex';
+    clearTimeout(window.typingHideTimeout);
+    window.typingHideTimeout = setTimeout(() => DOM.typingIndicator.style.display = 'none', 2000);
+}
+
+// ============= ЛИЧНЫЕ СООБЩЕНИЯ =============
+async function showDMList() {
+    currentChat = 'dm';
+    currentDMUser = null;
+    DOM.dmList.style.display = 'block';
+    DOM.messagesContainer.style.display = 'none';
+    DOM.chatTitle.innerHTML = '💬 Личные сообщения';
+    document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('[data-chat="dm"]').classList.add('active');
+    await loadDMList();
+}
+
+async function loadDMList() {
+    try {
+        const res = await fetch('/api/dm/list');
+        const data = await res.json();
+        dmList = data.dms || [];
+        renderDMList();
+    } catch (e) {
+        console.error('Failed to load DM list:', e);
+        DOM.dmList.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">❌ Ошибка загрузки списка</div>';
+    }
+}
+
+function renderDMList() {
+    const fragment = document.createDocumentFragment();
+    
+    if (dmList.length === 0) {
+        DOM.dmList.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-muted);">
+            🤝 Нет личных сообщений<br><small>Нажмите ПКМ на сообщении пользователя и выберите "Личное сообщение"</small>
+        </div>`;
+        return;
+    }
+    
+    dmList.forEach(dm => {
+        const div = document.createElement('div');
+        div.className = 'dm-item';
+        div.onclick = () => openDM(dm.user_id, dm.username);
+        div.innerHTML = `
+            <img src="${dm.avatar || '/static/default_avatar.png'}" class="dm-avatar" onerror="this.src='/static/default_avatar.png'">
+            <div class="dm-info">
+                <div class="dm-name">
+                    ${escapeHtml(dm.username)}
+                    <span class="${onlineUsers.has(dm.user_id) ? 'dm-online' : 'dm-offline'}" title="${onlineUsers.has(dm.user_id) ? 'онлайн' : 'офлайн'}"></span>
+                </div>
+                <div class="dm-last-message">${escapeHtml(dm.last_message || 'Нет сообщений')}</div>
+            </div>
+            <div class="dm-time">${dm.last_time || ''}</div>
+        `;
+        fragment.appendChild(div);
+    });
+    
+    DOM.dmList.innerHTML = '';
+    DOM.dmList.appendChild(fragment);
+}
+
+function openDM(userId, username) {
+    currentChat = 'dm';
+    currentDMUser = userId;
+    currentPage = 0;
+    hasMore = true;
+    DOM.dmList.style.display = 'none';
+    DOM.messagesContainer.style.display = 'flex';
+    DOM.chatTitle.innerHTML = `
+        <button onclick="backToDMList()" style="background: none; border: none; color: var(--accent-color); cursor: pointer; margin-right: 10px;">
+            <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        💬 Личный чат с ${escapeHtml(username)}
+    `;
+    loadChatHistory(true);
+}
+
+function backToDMList() {
+    currentChat = 'dm';
+    currentDMUser = null;
+    DOM.dmList.style.display = 'block';
+    DOM.messagesContainer.style.display = 'none';
+    DOM.chatTitle.innerHTML = '💬 Личные сообщения';
+    loadDMList();
+}
+
+function switchToPublicChat() {
+    currentChat = 'public';
+    currentDMUser = null;
+    currentPage = 0;
+    hasMore = true;
+    DOM.dmList.style.display = 'none';
+    DOM.messagesContainer.style.display = 'flex';
+    DOM.chatTitle.innerHTML = '💬 Общий чат';
+    document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('[data-chat="public"]').classList.add('active');
+    loadChatHistory(true);
+}
+
+function startDMFromContext() {
+    if (currentMessageUserId && currentMessageUserId !== {{ current_user.id|tojson }}) {
+        openDM(currentMessageUserId, currentMessageUsername);
+    }
+    closeContextMenu();
+}
+
+// ============= КОНТЕКСТНОЕ МЕНЮ =============
+let contextMenuMsg = null;
+let currentMessageUserId = null;
+let currentMessageUsername = null;
+
+function showContextMenu(e, msg) {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuMsg = msg;
+    currentMessageUserId = msg.user_id;
+    currentMessageUsername = msg.username;
+    
+    const isOwner = msg.user_id === {{ current_user.id|tojson }};
+    let menu = document.getElementById('context-menu');
+    if (!menu) {
+        menu = document.createElement('div');
+        menu.id = 'context-menu';
+        menu.className = 'context-menu';
+        document.body.appendChild(menu);
+    }
+    
+    menu.innerHTML = `
+        <div class="context-menu-item" onclick="replyToMessage()"><i class="fa-solid fa-reply"></i> Ответить</div>
+        <div class="context-menu-item" onclick="copyMessageText()"><i class="fa-solid fa-copy"></i> Копировать текст</div>
+        ${!isOwner ? `<div class="context-menu-item" onclick="startDMFromContext()"><i class="fa-regular fa-envelope"></i> Личное сообщение</div>` : ''}
+        ${isOwner ? `<div class="context-menu-divider"></div>
+        <div class="context-menu-item" onclick="editMessage()"><i class="fa-solid fa-pen"></i> Редактировать</div>
+        <div class="context-menu-item delete" onclick="deleteMessage()"><i class="fa-solid fa-trash"></i> Удалить</div>` : ''}
+    `;
+    
+    menu.style.display = 'block';
+    menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
+    menu.style.top = Math.min(e.clientY, window.innerHeight - 200) + 'px';
+    setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
+}
+
+function closeContextMenu() {
+    const menu = document.getElementById('context-menu');
+    if (menu) menu.style.display = 'none';
+    document.removeEventListener('click', closeContextMenu);
+}
+
+function replyToMessage() {
+    if (contextMenuMsg) setReply(contextMenuMsg.message, contextMenuMsg.username);
+    closeContextMenu();
+}
+
+function copyMessageText() {
+    if (contextMenuMsg) {
+        navigator.clipboard.writeText(contextMenuMsg.message);
+        showToast('📋 Текст скопирован');
+    }
+    closeContextMenu();
+}
+
+function editMessage() {
+    if (contextMenuMsg) {
+        editId = contextMenuMsg.id;
+        document.getElementById('edit-textarea').value = contextMenuMsg.message;
+        document.getElementById('edit-modal').style.display = 'flex';
+    }
+    closeContextMenu();
+}
+
+function deleteMessage() {
+    if (contextMenuMsg) {
+        deleteId = contextMenuMsg.id;
+        document.getElementById('confirm-modal').style.display = 'flex';
+    }
+    closeContextMenu();
+}
+
+// ============= МОДАЛЬНЫЕ ОКНА =============
+async function submitEdit() {
+    const newText = document.getElementById('edit-textarea').value.trim();
+    if (!newText || !editId) return;
+    try {
+        const formData = new FormData();
+        formData.append('message', newText);
+        formData.append('csrf_token', '{{ csrf_token() }}');
+        const res = await fetch(`/chat/edit/${editId}`, { method: 'POST', body: formData });
+        if (res.ok) {
+            showToast('✏️ Сообщение изменено');
+            closeEditModal();
+        } else {
+            showToast('❌ Ошибка при редактировании', 'error');
+        }
+    } catch (e) {
+        showToast('❌ Ошибка при редактировании', 'error');
+    }
+}
+
+function confirmDelete() {
+    if (deleteId) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/chat/delete/${deleteId}`;
+        form.innerHTML = `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+    closeConfirmModal();
+}
+
+function closeEditModal() {
+    document.getElementById('edit-modal').style.display = 'none';
+    editId = null;
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').style.display = 'none';
+    deleteId = null;
+}
+
+// ============= УЛУЧШЕНИЕ 5: Debounce для поиска =============
+function debounce(func, delay) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), delay);
+    };
+}
+
+// ============= ПОИСК =============
+function openSearchModal() {
+    document.getElementById('search-modal').style.display = 'flex';
+    document.getElementById('search-input').focus();
+}
+
+function closeSearchModal() {
+    document.getElementById('search-modal').style.display = 'none';
+}
+
+const debouncedSearch = debounce(performSearch, 300);
+
+function performSearch() {
+    const query = document.getElementById('search-input').value.toLowerCase().trim();
+    const resultsDiv = document.getElementById('search-results');
+    if (!query) { resultsDiv.innerHTML = ''; return; }
+    
+    const messages = document.querySelectorAll('.message');
+    const results = [];
+    messages.forEach(msg => {
+        const text = msg.dataset.text || '';
+        const username = msg.dataset.username || '';
+        if (text.toLowerCase().includes(query) || username.toLowerCase().includes(query)) {
+            results.push({ msg, text: text.substring(0, 100), username });
+        }
+    });
+    
+    if (results.length === 0) {
+        resultsDiv.innerHTML = '<div style="text-align: center; color: var(--text-muted);">🔍 Ничего не найдено</div>';
+        return;
+    }
+    
+    resultsDiv.innerHTML = results.map(r => `
+        <div onclick="jumpToMessage(${r.msg.dataset.id})" style="padding: 10px; margin-bottom: 8px; background: rgba(0,0,0,0.1); border-radius: 8px; cursor: pointer;">
+            <strong>${escapeHtml(r.username)}</strong><br><small>${escapeHtml(r.text)}...</small>
+        </div>
+    `).join('');
+}
+
+function jumpToMessage(id) {
+    const msg = document.querySelector(`.message[data-id="${id}"]`);
+    if (msg) {
+        msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        closeSearchModal();
+    }
+}
+
+// ============= УЛУЧШЕНИЕ 5: Debounce для скролла =============
+function setupInfiniteScroll() {
+    DOM.messagesContainer.addEventListener('scroll', () => {
+        if (scrollTimeout) clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            if (DOM.messagesContainer.scrollTop < 100 && !loading && hasMore) {
+                loadChatHistory(false);
+            }
+        }, 100);
+    });
+}
+
+// ============= УЛУЧШЕНИЕ 8: Горячие клавиши =============
+function setupHotkeys() {
+    document.addEventListener('keydown', (e) => {
+        // Ctrl + Enter - отправить
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+        }
+        
+        // Ctrl + / - фокус на поле ввода
+        if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+            e.preventDefault();
+            DOM.messageInput.focus();
+        }
+        
+        // Ctrl + K - поиск
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            openSearchModal();
+        }
+        
+        // Escape - закрыть все модалки
+        if (e.key === 'Escape') {
+            closeContextMenu();
+            hideMentions();
+            closeEditModal();
+            closeConfirmModal();
+            closeSearchModal();
+            if (emojiPickerVisible) toggleEmojiPicker();
+        }
+    });
+}
+
+function setupEventListeners() {
+    const newInput = DOM.messageInput.cloneNode(true);
+    DOM.messageInput.parentNode.replaceChild(newInput, DOM.messageInput);
+    DOM.messageInput = document.getElementById('message-input');
+    
+    DOM.messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    DOM.messageInput.addEventListener('keyup', (e) => {
+        onTyping();
+        handleMentionInput(e);
+    });
+    DOM.messageInput.addEventListener('keydown', handleMentionKeydown);
+    
+    // Поиск с debounce
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', debouncedSearch);
+    }
+}
+
+function clearLocalChat() {
+    if (confirm('Очистить чат локально? Сообщения останутся у других пользователей.')) {
+        DOM.messagesContainer.innerHTML = '';
+        renderedMessages.clear();
+        showToast('🧹 Чат очищен локально');
+    }
+}
+
+function toggleTheme() {
+    const html = document.documentElement;
+    const themes = ['default', 'black', 'slate', 'ocean', 'midnight', 'neon'];
+    const current = html.getAttribute('data-theme') || 'default';
+    const next = themes[(themes.indexOf(current) + 1) % themes.length];
+    html.setAttribute('data-theme', next);
+    fetch('/set_theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+        body: JSON.stringify({ theme: next })
+    });
+}
+
+// ============= ЗАПУСК =============
+document.addEventListener('DOMContentLoaded', () => {
+    initSocket();
+    loadUsers();
+    loadChatHistory(true);
+    setupEventListeners();
+    setupInfiniteScroll();
+    setupHotkeys();
+    loadDMList();
+    saveUserTimezone();
+    initNotifications();
+});
+
+// Экспорт глобальных функций
+window.sendMessage = sendMessage;
+window.switchToPublicChat = switchToPublicChat;
+window.showDMList = showDMList;
+window.openDM = openDM;
+window.backToDMList = backToDMList;
+window.setReply = setReply;
+window.cancelReply = cancelReply;
+window.replyToMessage = replyToMessage;
+window.copyMessageText = copyMessageText;
+window.startDMFromContext = startDMFromContext;
+window.editMessage = editMessage;
+window.deleteMessage = deleteMessage;
+window.submitEdit = submitEdit;
+window.confirmDelete = confirmDelete;
+window.closeEditModal = closeEditModal;
+window.closeConfirmModal = closeConfirmModal;
+window.openSearchModal = openSearchModal;
+window.closeSearchModal = closeSearchModal;
+window.jumpToMessage = jumpToMessage;
+window.clearLocalChat = clearLocalChat;
+window.toggleTheme = toggleTheme;
+window.highlightUserMessages = highlightUserMessages;
+window.toggleEmojiPicker = toggleEmojiPicker;
+window.insertEmoji = insertEmoji;
+</script>
+{% endblock %}

@@ -1,0 +1,919 @@
+{% extends 'base.html' %}
+
+{% block title %}Загрузка{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card upload-card" style="max-width: 600px;">
+
+        <!-- Выбор режима загрузки -->
+        <div class="upload-mode-selector" style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button type="button" id="simple-mode-btn" class="mode-btn active">
+                <i class="fa-solid fa-bolt"></i> Быстрая (до 100MB)
+            </button>
+            <button type="button" id="chunk-mode-btn" class="mode-btn">
+                <i class="fa-solid fa-layer-group"></i> Большие файлы (до 100GB)
+            </button>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" id="upload-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+            <!-- Зона для drag and drop -->
+            <div class="upload-area">
+                <div id="drop-zone" class="drop-zone" style="padding: 50px 20px; cursor: pointer;">
+                    <div class="drop-zone-content">
+                        <div class="upload-icon" style="font-size: 64px; margin-bottom: 20px;">📁</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; margin-bottom: 10px; color: var(--accent-color);">
+                            ПЕРЕТАЩИТЕ ФАЙЛЫ
+                        </div>
+                        <div style="font-size: 1.3rem; margin-bottom: 15px; color: var(--text-main);">
+                            СЮДА
+                        </div>
+                        <div style="font-size: 1rem; color: var(--text-muted);">
+                            или <span id="select-files-btn" style="color: var(--accent-color); text-decoration: underline; cursor: pointer;">нажмите для выбора</span>
+                        </div>
+                    </div>
+                </div>
+
+                <input type="file" name="files" id="file-input" multiple style="display: none;">
+            </div>
+
+            <!-- Отображение выбранных файлов -->
+            <div id="file-name" class="file-name-display" style="font-size: 1.1rem; padding: 15px; margin: 15px 0;">
+                Файлы не выбраны
+            </div>
+
+            <div id="preview-container" class="preview-container"></div>
+
+            <textarea name="description"
+                      class="upload-description"
+                      placeholder="Добавьте подпись к файлам..."
+                      style="min-height: 100px; margin: 15px 0;">
+            </textarea>
+
+            <!-- Прогресс для чанковой загрузки -->
+            <div id="chunk-progress-wrapper" style="display: none; margin: 20px 0;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9em;">
+                    <span id="chunk-progress-status" style="color: var(--accent-color);">Подготовка...</span>
+                    <span id="chunk-progress-percent" style="color: var(--accent-color);">0%</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                    <div id="chunk-progress-bar" style="width: 0%; height: 100%; background: var(--accent-color); transition: width 0.2s;"></div>
+                </div>
+                <div id="chunk-detail" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; text-align: center;"></div>
+            </div>
+
+            <!-- Обычный прогресс -->
+            <div id="simple-progress-wrapper" style="display: none; margin: 20px 0;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9em;">
+                    <span id="simple-progress-status" style="color: var(--accent-color);">Загрузка...</span>
+                    <span id="simple-progress-percent" style="color: var(--accent-color);">0%</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                    <div id="simple-progress-bar" style="width: 0%; height: 100%; background: var(--accent-color); transition: width 0.2s;"></div>
+                </div>
+            </div>
+
+            <button type="submit" class="stat-card" style="cursor: pointer; width: 100%; border: none; background: var(--accent-color); color: var(--bg-color); font-weight: bold; padding: 1rem; border-radius: 8px; font-size: 1.2rem; margin-top: 10px;" id="submit-btn">
+                Загрузить
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .mode-btn {
+        flex: 1;
+        padding: 10px;
+        border: 2px solid var(--glass-border);
+        background: transparent;
+        color: var(--text-muted);
+        border-radius: 30px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 600;
+    }
+    
+    .mode-btn.active {
+        background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+        color: #0b1120;
+        border-color: var(--accent-color);
+    }
+    
+    .mode-btn i {
+        margin-right: 5px;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .preview-item {
+        animation: fadeIn 0.3s ease;
+    }
+    .drag-active {
+        border-color: var(--accent-color) !important;
+        background: rgba(var(--accent-rgb), 0.1) !important;
+    }
+    .delete-btn:hover {
+        transform: scale(1.05);
+    }
+    
+    .resume-badge {
+        background: #22c55e;
+        color: #0b1120;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 10px;
+        margin-left: 8px;
+    }
+    
+    /* Анимация для уведомления о возобновлении */
+    @keyframes pulse-green {
+        0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+    }
+    
+    .resume-notification {
+        animation: pulse-green 1s ease;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Страница загрузки готова! (с поддержкой Resume)');
+    
+    // ============= КЛЮЧ ДЛЯ ХРАНЕНИЯ АКТИВНЫХ СЕССИЙ =============
+    const STORAGE_KEY = 'space_share_active_uploads';
+    
+    // ============= РЕЖИМЫ ЗАГРУЗКИ =============
+    let uploadMode = 'simple';
+    const simpleModeBtn = document.getElementById('simple-mode-btn');
+    const chunkModeBtn = document.getElementById('chunk-mode-btn');
+    const MAX_SIMPLE_SIZE = 100 * 1024 * 1024; // 100MB
+    
+    simpleModeBtn.addEventListener('click', () => {
+        uploadMode = 'simple';
+        simpleModeBtn.classList.add('active');
+        chunkModeBtn.classList.remove('active');
+        showToast('Режим быстрой загрузки (до 100MB)', 'info');
+    });
+    
+    chunkModeBtn.addEventListener('click', () => {
+        uploadMode = 'chunk';
+        chunkModeBtn.classList.add('active');
+        simpleModeBtn.classList.remove('active');
+        showToast('Режим больших файлов (до 100GB, с возобновлением)', 'info');
+    });
+    
+    // ============= ЭЛЕМЕНТЫ =============
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const selectBtn = document.getElementById('select-files-btn');
+    const fileNameDisplay = document.getElementById('file-name');
+    const previewContainer = document.getElementById('preview-container');
+    const uploadForm = document.getElementById('upload-form');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    // Прогресс для чанков
+    const chunkProgressWrapper = document.getElementById('chunk-progress-wrapper');
+    const chunkProgressBar = document.getElementById('chunk-progress-bar');
+    const chunkProgressPercent = document.getElementById('chunk-progress-percent');
+    const chunkProgressStatus = document.getElementById('chunk-progress-status');
+    const chunkDetail = document.getElementById('chunk-detail');
+    
+    // Обычный прогресс
+    const simpleProgressWrapper = document.getElementById('simple-progress-wrapper');
+    const simpleProgressBar = document.getElementById('simple-progress-bar');
+    const simpleProgressPercent = document.getElementById('simple-progress-percent');
+    const simpleProgressStatus = document.getElementById('simple-progress-status');
+    
+    // Массив выбранных файлов
+    let selectedFiles = [];
+    let batchId = null;
+    const MAX_FILES = 10;
+    
+    // ============= ФОРМАТИРОВАНИЕ РАЗМЕРА =============
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        const value = bytes / Math.pow(k, i);
+        return parseFloat(value.toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // ============= ПОЛУЧЕНИЕ ИКОНКИ =============
+    function getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const icons = {
+            'png': '🖼️', 'jpg': '🖼️', 'jpeg': '🖼️', 'gif': '🎞️', 'webp': '🖼️',
+            'pdf': '📑', 'docx': '📘', 'txt': '📝', 'mp3': '🎵', 'mp4': '🎬',
+            'zip': '🗜️', 'rar': '🗜️', 'html': '🌐', 'js': '⚡', 'py': '🐍'
+        };
+        return icons[ext] || '📄';
+    }
+    
+    // ============= ЭКРАНИРОВАНИЕ HTML =============
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+    
+    // ============= ПОКАЗ УВЕДОМЛЕНИЙ =============
+    function showToast(message, type = 'success') {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+        }
+        
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-exclamation'}"></i> ${message}`;
+        container.appendChild(toast);
+        
+        setTimeout(() => toast.remove(), 4000);
+    }
+    
+    // ============= СОХРАНЕНИЕ ИНФОРМАЦИИ О СЕССИИ В LOCALSTORAGE =============
+    function saveUploadSession(sessionId, filename, fileSize, totalChunks, uploadedChunks) {
+        const sessions = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const existingIndex = sessions.findIndex(s => s.sessionId === sessionId);
+        
+        const sessionData = {
+            sessionId: sessionId,
+            filename: filename,
+            fileSize: fileSize,
+            totalChunks: totalChunks,
+            uploadedChunks: uploadedChunks,
+            lastUpdate: Date.now(),
+            percent: (uploadedChunks.length / totalChunks) * 100
+        };
+        
+        if (existingIndex >= 0) {
+            sessions[existingIndex] = sessionData;
+        } else {
+            sessions.push(sessionData);
+        }
+        
+        // Очищаем старые сессии (старше 24 часов)
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        const filteredSessions = sessions.filter(s => s.lastUpdate > oneDayAgo);
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredSessions));
+    }
+    
+    // ============= ПОЛУЧЕНИЕ НЕЗАВЕРШЁННЫХ СЕССИЙ =============
+    function getIncompleteUploads() {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    }
+    
+    // ============= УДАЛЕНИЕ СЕССИИ ИЗ LOCALSTORAGE =============
+    function removeUploadSession(sessionId) {
+        const sessions = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const filtered = sessions.filter(s => s.sessionId !== sessionId);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+    }
+    
+    // ============= ПРОВЕРКА НАЛИЧИЯ НЕЗАВЕРШЁННЫХ ЗАГРУЗОК ДЛЯ ФАЙЛА =============
+    async function checkForResume(file) {
+        const incompleteSessions = getIncompleteUploads();
+        const existing = incompleteSessions.find(s => s.filename === file.name && s.fileSize === file.size);
+        
+        if (existing && existing.uploadedChunks.length < existing.totalChunks) {
+            const percent = Math.round(existing.percent);
+            const answer = confirm(`📁 Найдена незавершённая загрузка файла "${file.name}" (${percent}%).\n\nПродолжить с того же места?`);
+            
+            if (answer) {
+                // Возобновляем загрузку
+                return await resumeUpload(existing.sessionId, file, existing.uploadedChunks, existing.totalChunks);
+            } else {
+                // Пользователь отказался — удаляем старую сессию
+                removeUploadSession(existing.sessionId);
+                // Также удаляем на сервере
+                await fetch(`/api/upload/abort/${existing.sessionId}`, { method: 'DELETE' });
+                return null;
+            }
+        }
+        return null;
+    }
+    
+    // ============= ВОЗОБНОВЛЕНИЕ ЗАГРУЗКИ =============
+    async function resumeUpload(sessionId, file, alreadyUploadedChunks, totalChunks) {
+        console.log(`🔄 Возобновление загрузки ${file.name} с чанка ${alreadyUploadedChunks.length}/${totalChunks}`);
+        
+        const CHUNK_SIZE = 5 * 1024 * 1024;
+        
+        // Загружаем только недостающие чанки
+        for (let i = alreadyUploadedChunks.length; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, file.size);
+            const chunk = file.slice(start, end);
+            
+            const formData = new FormData();
+            formData.append('chunk', chunk);
+            formData.append('session_id', sessionId);
+            formData.append('chunk_index', i);
+            formData.append('total_chunks', totalChunks);
+            formData.append('filename', file.name);
+            formData.append('file_size', file.size);
+            formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.content);
+            
+            const response = await fetch('/api/upload/chunk', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Ошибка загрузки чанка ${i + 1}/${totalChunks}`);
+            }
+            
+            const result = await response.json();
+            
+            // Обновляем прогресс
+            const percent = ((i + 1) / totalChunks) * 100;
+            chunkProgressBar.style.width = percent + '%';
+            chunkProgressPercent.textContent = Math.round(percent) + '%';
+            chunkDetail.innerHTML = `Чанк ${i + 1}/${totalChunks} (${formatFileSize(chunk.size)}) — ВОЗОБНОВЛЕНО`;
+            
+            // Обновляем сохранённую сессию
+            const updatedChunks = [...alreadyUploadedChunks, i];
+            saveUploadSession(sessionId, file.name, file.size, totalChunks, updatedChunks);
+            
+            if (i + 1 === totalChunks) {
+                chunkProgressStatus.textContent = 'Сборка файла...';
+            }
+        }
+        
+        // Завершаем загрузку
+        const completeResponse = await fetch('/api/upload/complete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                description: document.querySelector('[name="description"]')?.value || '',
+                batch_id: batchId
+            })
+        });
+        
+        if (!completeResponse.ok) {
+            throw new Error('Ошибка при завершении загрузки');
+        }
+        
+        // Удаляем сессию из localStorage после успешной загрузки
+        removeUploadSession(sessionId);
+        
+        return await completeResponse.json();
+    }
+    
+    // ============= НОВАЯ ЧАНКОВАЯ ЗАГРУЗКА =============
+    async function uploadFileChunked(file, description, batchId) {
+        const CHUNK_SIZE = 5 * 1024 * 1024;
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        
+        // Сначала проверяем, есть ли незавершённая загрузка для этого файла
+        const resumeResult = await checkForResume(file);
+        if (resumeResult) {
+            // Возобновили загрузку
+            return resumeResult;
+        }
+        
+        // Новая загрузка
+        const sessionId = crypto.randomUUID ? crypto.randomUUID() : 
+            'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+        
+        // Инициализация сессии
+        const initResponse = await fetch('/api/upload/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content
+            },
+            body: JSON.stringify({
+                filename: file.name,
+                file_size: file.size,
+                total_chunks: totalChunks
+            })
+        });
+        
+        if (!initResponse.ok) {
+            throw new Error('Не удалось инициализировать загрузку');
+        }
+        
+        const uploadedChunks = [];
+        
+        // Загружаем чанки
+        for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, file.size);
+            const chunk = file.slice(start, end);
+            
+            const formData = new FormData();
+            formData.append('chunk', chunk);
+            formData.append('session_id', sessionId);
+            formData.append('chunk_index', i);
+            formData.append('total_chunks', totalChunks);
+            formData.append('filename', file.name);
+            formData.append('file_size', file.size);
+            formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.content);
+            
+            const response = await fetch('/api/upload/chunk', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Ошибка загрузки чанка ${i + 1}/${totalChunks}`);
+            }
+            
+            uploadedChunks.push(i);
+            
+            // Сохраняем прогресс в localStorage (для Resume)
+            saveUploadSession(sessionId, file.name, file.size, totalChunks, uploadedChunks);
+            
+            const result = await response.json();
+            
+            // Обновляем прогресс
+            const percent = ((i + 1) / totalChunks) * 100;
+            chunkProgressBar.style.width = percent + '%';
+            chunkProgressPercent.textContent = Math.round(percent) + '%';
+            chunkDetail.innerHTML = `Чанк ${i + 1}/${totalChunks} (${formatFileSize(chunk.size)})`;
+            
+            if (i + 1 === totalChunks) {
+                chunkProgressStatus.textContent = 'Сборка файла...';
+            }
+        }
+        
+        // Завершаем загрузку
+        const completeResponse = await fetch('/api/upload/complete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                description: description,
+                batch_id: batchId
+            })
+        });
+        
+        if (!completeResponse.ok) {
+            throw new Error('Ошибка при завершении загрузки');
+        }
+        
+        // Удаляем сессию из localStorage после успешной загрузки
+        removeUploadSession(sessionId);
+        
+        return await completeResponse.json();
+    }
+    
+    // ============= ОБЫЧНАЯ ЗАГРУЗКА =============
+   function uploadSimple(files, description, batchId) {
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.content);
+            files.forEach(f => formData.append('files', f));
+            
+            if (description) formData.append('description', description);
+            // ✅ ДОБАВИТЬ ЭТУ СТРОКУ:
+            if (batchId) formData.append('batch_id', batchId);
+            
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    simpleProgressBar.style.width = percent + '%';
+                    simpleProgressPercent.textContent = percent + '%';
+                    simpleProgressStatus.textContent = percent === 100 ? 'Обработка...' : 'Загрузка...';
+                }
+            });
+            
+            xhr.onload = () => {
+                if (xhr.status === 200 || xhr.status === 302) {
+                    resolve();
+                } else {
+                    reject(new Error(xhr.responseText || 'Ошибка загрузки'));
+                }
+            };
+            
+            xhr.onerror = () => reject(new Error('Ошибка сети'));
+            
+            xhr.open('POST', '/upload');
+            xhr.send(formData);
+        });
+    }
+    
+    // ============= ОСНОВНАЯ ФУНКЦИЯ ЗАГРУЗКИ =============
+    async function uploadFiles() {
+        if (selectedFiles.length === 0) {
+            showToast('📁 Выберите файлы для загрузки', 'error');
+            return;
+        }
+        
+        // Проверяем размер для обычного режима
+        if (uploadMode === 'simple') {
+            const tooLarge = selectedFiles.some(f => f.size > MAX_SIMPLE_SIZE);
+            if (tooLarge) {
+                const answer = confirm('Некоторые файлы больше 100MB. Переключиться на режим больших файлов (с возобновлением)?');
+                if (answer) {
+                    uploadMode = 'chunk';
+                    chunkModeBtn.click();
+                    setTimeout(() => uploadFiles(), 500);
+                } else {
+                    showToast('Используйте режим больших файлов для файлов >100MB', 'error');
+                }
+                return;
+            }
+        }
+        
+        // Показываем нужный прогресс-бар
+        if (uploadMode === 'chunk') {
+            simpleProgressWrapper.style.display = 'none';
+            chunkProgressWrapper.style.display = 'block';
+            chunkProgressStatus.textContent = 'Подготовка...';
+            chunkProgressBar.style.width = '0%';
+            chunkProgressPercent.textContent = '0%';
+            chunkDetail.innerHTML = '';
+        } else {
+            chunkProgressWrapper.style.display = 'none';
+            simpleProgressWrapper.style.display = 'block';
+            simpleProgressBar.style.width = '0%';
+            simpleProgressPercent.textContent = '0%';
+            simpleProgressStatus.textContent = 'Подготовка...';
+        }
+        
+        submitBtn.disabled = true;
+        const originalBtnText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Загрузка...';
+        
+        const description = document.querySelector('[name="description"]')?.value || '';
+        
+        // Создаём batchId если несколько файлов
+        let currentBatchId = batchId;
+        if (selectedFiles.length > 1 && !currentBatchId) {
+            currentBatchId = crypto.randomUUID ? crypto.randomUUID() : 
+                'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                    const r = Math.random() * 16 | 0;
+                    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+                });
+        }
+        
+        let successCount = 0;
+        let errorCount = 0;
+        let resumedCount = 0;
+        
+        for (let i = 0; i < selectedFiles.length; i++) {
+            const file = selectedFiles[i];
+            
+            if (uploadMode === 'chunk') {
+                chunkProgressStatus.textContent = `Загрузка ${i + 1}/${selectedFiles.length}: ${file.name}`;
+                chunkDetail.innerHTML = `Файл ${i + 1}/${selectedFiles.length}`;
+            } else {
+                simpleProgressStatus.textContent = `Загрузка ${i + 1}/${selectedFiles.length}: ${file.name}`;
+            }
+            
+            try {
+                const startTime = Date.now();
+                let result;
+                
+                if (uploadMode === 'chunk') {
+                    result = await uploadFileChunked(file, description, selectedFiles.length > 1 ? currentBatchId : null);
+                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                    
+                    // Проверяем, была ли это возобновлённая загрузка
+                    if (result.resumed) {
+                        resumedCount++;
+                        showToast(`🔄 Файл "${file.name}" возобновлён и загружен (${elapsed} сек)`, 'success');
+                    }
+                } else {
+                    await uploadSimple([file], description, selectedFiles.length > 1 ? currentBatchId : null);
+                }
+                successCount++;
+            } catch (err) {
+                console.error(`Ошибка загрузки ${file.name}:`, err);
+                errorCount++;
+                showToast(`❌ Ошибка: ${file.name} - ${err.message}`, 'error');
+            }
+        }
+        
+        // Скрываем прогресс
+        chunkProgressWrapper.style.display = 'none';
+        simpleProgressWrapper.style.display = 'none';
+        
+        if (successCount > 0) {
+            let message = `✅ Загружено: ${successCount} файлов`;
+            if (resumedCount > 0) message += ` (${resumedCount} возобновлено)`;
+            if (errorCount > 0) message += `, ошибок: ${errorCount}`;
+            showToast(message, errorCount > 0 ? 'warning' : 'success');
+            
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1500);
+        } else {
+            showToast('❌ Не удалось загрузить файлы', 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        }
+    }
+    
+    // ============= ОБНОВЛЕНИЕ ОТОБРАЖЕНИЯ ФАЙЛОВ =============
+    function updateDisplay() {
+        if (!previewContainer) return;
+        
+        if (selectedFiles.length === 0) {
+            fileNameDisplay.innerHTML = 'Файлы не выбраны';
+            previewContainer.innerHTML = '';
+            submitBtn.disabled = true;
+            batchId = null;
+            return;
+        }
+        
+        const totalSize = selectedFiles.reduce((sum, f) => sum + f.size, 0);
+        const hasLargeFiles = selectedFiles.some(f => f.size > MAX_SIMPLE_SIZE);
+        
+        // Проверяем наличие незавершённых загрузок для выбранных файлов
+        const incompleteSessions = getIncompleteUploads();
+        let hasResumable = 0;
+        
+        selectedFiles.forEach(file => {
+            const existing = incompleteSessions.find(s => s.filename === file.name && s.fileSize === file.size);
+            if (existing && existing.uploadedChunks.length < existing.totalChunks) {
+                hasResumable++;
+            }
+        });
+        
+        fileNameDisplay.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <strong>📁 ${selectedFiles.length} файл(ов)</strong>
+                <span style="font-size: 0.9em;">💾 ${formatFileSize(totalSize)}</span>
+                ${hasLargeFiles ? '<span class="resume-badge"><i class="fa-solid fa-rocket"></i> Требуется чанковая загрузка</span>' : ''}
+                ${hasResumable > 0 ? `<span class="resume-badge" style="background: #f59e0b;"><i class="fa-solid fa-rotate-left"></i> ${hasResumable} можно возобновить</span>` : ''}
+            </div>
+        `;
+        
+        previewContainer.innerHTML = '';
+        
+        selectedFiles.forEach((file, index) => {
+            const icon = getFileIcon(file.name);
+            const fileSize = formatFileSize(file.size);
+            const fileExt = file.name.split('.').pop().toUpperCase();
+            const isLarge = file.size > MAX_SIMPLE_SIZE;
+            
+            // Проверяем наличие незавершённой загрузки для этого файла
+            const incompleteSessions = getIncompleteUploads();
+            const existingSession = incompleteSessions.find(s => s.filename === file.name && s.fileSize === file.size);
+            const hasResume = existingSession && existingSession.uploadedChunks.length < existingSession.totalChunks;
+            const resumePercent = hasResume ? Math.round(existingSession.percent) : 0;
+            
+            const item = document.createElement('div');
+            item.className = 'preview-item';
+            item.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px;
+                margin-bottom: 8px;
+                background: rgba(255,255,255,0.05);
+                border-radius: 8px;
+                border: 1px solid rgba(255,255,255,0.1);
+            `;
+            
+            const iconDiv = document.createElement('div');
+            iconDiv.style.cssText = `
+                width: 40px;
+                height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.8rem;
+                background: rgba(255,255,255,0.1);
+                border-radius: 8px;
+            `;
+            iconDiv.textContent = icon;
+            
+            const infoDiv = document.createElement('div');
+            infoDiv.style.flex = '1';
+            infoDiv.innerHTML = `
+                <div style="font-weight: 500; word-break: break-word;">
+                    ${escapeHtml(file.name)}
+                    ${isLarge ? '<span class="resume-badge" style="margin-left: 8px;"><i class="fa-solid fa-gem"></i> Большой файл</span>' : ''}
+                    ${hasResume ? `<span class="resume-badge" style="background: #f59e0b; margin-left: 8px;"><i class="fa-solid fa-rotate-left"></i> ${resumePercent}% загружено</span>` : ''}
+                </div>
+                <div style="font-size: 11px; color: #888; margin-top: 4px;">${fileSize} • ${fileExt}</div>
+            `;
+            
+            // Кнопка возобновления (если есть незавершённая загрузка)
+            if (hasResume) {
+                const resumeBtn = document.createElement('button');
+                resumeBtn.innerHTML = '↻';
+                resumeBtn.title = 'Возобновить загрузку';
+                resumeBtn.style.cssText = `
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 8px;
+                    border: none;
+                    background: #f59e0b;
+                    color: #0b1120;
+                    cursor: pointer;
+                    font-size: 18px;
+                    font-weight: bold;
+                    transition: all 0.2s ease;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin-right: 5px;
+                `;
+                resumeBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    // Удаляем файл из списка и начинаем заново с возобновлением
+                    const indexToRemove = selectedFiles.findIndex(f => f.name === file.name && f.size === file.size);
+                    if (indexToRemove !== -1) {
+                        selectedFiles.splice(indexToRemove, 1);
+                        updateFileInput();
+                        updateDisplay();
+                    }
+                    // Добавляем файл снова — при добавлении сработает checkForResume
+                    addFiles([file]);
+                    showToast(`🔄 Будет возобновлена загрузка "${file.name}"`, 'info');
+                };
+                item.appendChild(resumeBtn);
+            }
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = '✕';
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.style.cssText = `
+                width: 36px;
+                height: 36px;
+                border-radius: 8px;
+                border: none;
+                background: #dc2626;
+                color: white;
+                cursor: pointer;
+                font-size: 20px;
+                font-weight: bold;
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+            deleteBtn.onmouseenter = () => {
+                deleteBtn.style.background = '#ef4444';
+                deleteBtn.style.transform = 'scale(1.05)';
+            };
+            deleteBtn.onmouseleave = () => {
+                deleteBtn.style.background = '#dc2626';
+                deleteBtn.style.transform = 'scale(1)';
+            };
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                // Если есть незавершённая сессия, спрашиваем, удалить ли её
+                const existing = incompleteSessions.find(s => s.filename === file.name && s.fileSize === file.size);
+                if (existing) {
+                    if (confirm(`Удалить также незавершённую загрузку "${file.name}"?`)) {
+                        fetch(`/api/upload/abort/${existing.sessionId}`, { method: 'DELETE' });
+                        removeUploadSession(existing.sessionId);
+                    }
+                }
+                selectedFiles.splice(index, 1);
+                updateFileInput();
+                updateDisplay();
+                if (selectedFiles.length === 0) submitBtn.disabled = true;
+            };
+            
+            item.appendChild(iconDiv);
+            item.appendChild(infoDiv);
+            if (!hasResume) item.appendChild(deleteBtn);
+            else item.appendChild(deleteBtn);
+            previewContainer.appendChild(item);
+        });
+        
+        submitBtn.disabled = false;
+    }
+    
+    function updateFileInput() {
+        const dt = new DataTransfer();
+        selectedFiles.forEach(f => dt.items.add(f));
+        fileInput.files = dt.files;
+    }
+    
+    function addFiles(newFiles) {
+        const filesArray = Array.from(newFiles);
+        const availableSlots = MAX_FILES - selectedFiles.length;
+        
+        if (availableSlots <= 0) {
+            showToast(`❌ Максимум ${MAX_FILES} файлов!`, 'error');
+            return;
+        }
+        
+        const filesToAdd = filesArray.slice(0, availableSlots);
+        
+        if (filesToAdd.length < filesArray.length) {
+            showToast(`⚠️ Добавлено только ${filesToAdd.length} из ${filesArray.length} файлов (максимум ${MAX_FILES})`, 'warning');
+        }
+        
+        if (selectedFiles.length > 0 && !batchId && (selectedFiles.length + filesToAdd.length) > 1) {
+            batchId = crypto.randomUUID ? crypto.randomUUID() : 
+                'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                    const r = Math.random() * 16 | 0;
+                    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+                });
+        }
+        
+        selectedFiles = [...selectedFiles, ...filesToAdd];
+        updateFileInput();
+        updateDisplay();
+        
+        // Показываем уведомление о возможности возобновления для больших файлов
+        const hasResumable = filesToAdd.some(f => {
+            const sessions = getIncompleteUploads();
+            return sessions.some(s => s.filename === f.name && s.fileSize === f.size);
+        });
+        
+        if (hasResumable && uploadMode === 'chunk') {
+            showToast('🔄 Обнаружены незавершённые загрузки. Они будут автоматически возобновлены.', 'info');
+        }
+    }
+    
+    // ============= DRAG AND DROP =============
+    if (dropZone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            document.body.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        
+        dropZone.addEventListener('dragenter', () => dropZone.classList.add('drag-active'));
+        dropZone.addEventListener('dragover', () => dropZone.classList.add('drag-active'));
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-active');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) addFiles(files);
+        });
+        
+        dropZone.addEventListener('click', () => {
+            if (selectedFiles.length < MAX_FILES) {
+                fileInput.click();
+            } else {
+                showToast(`❌ Достигнут лимит в ${MAX_FILES} файлов`, 'error');
+            }
+        });
+    }
+    
+    if (selectBtn) {
+        selectBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (selectedFiles.length < MAX_FILES) {
+                fileInput.click();
+            } else {
+                showToast(`❌ Достигнут лимит в ${MAX_FILES} файлов`, 'error');
+            }
+        };
+    }
+    
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) addFiles(e.target.files);
+            fileInput.value = '';
+        });
+    }
+    
+    uploadForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        uploadFiles();
+    });
+    
+    submitBtn.disabled = true;
+    console.log('✅ Чанковая загрузка с Resume готова!');
+    
+    // Показываем список незавершённых загрузок при загрузке страницы
+    const incomplete = getIncompleteUploads();
+    if (incomplete.length > 0) {
+        setTimeout(() => {
+            showToast(`🔄 У вас есть ${incomplete.length} незавершённых загрузок. Добавьте файлы снова для возобновления.`, 'info');
+        }, 1000);
+    }
+});
+</script>
+{% endblock %}

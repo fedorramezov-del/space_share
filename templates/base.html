@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="ru" data-theme="{{ current_user.theme if current_user.is_authenticated else 'default' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
+  <title>{% block title %}Space Share{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/all.min.css') }}">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  
+{% if current_user.is_authenticated and current_user.theme == "custom" %}
+<style>
+:root {
+    --custom-accent: {{ current_user.custom_accent or '#38bdf8' }};
+    --custom-bg: {{ current_user.custom_bg or '#0b1120' }};
+    --custom-container: rgba({{ current_user.custom_container|rgb }}, {{ (current_user.custom_container_opacity or 70) / 100 }});
+    --custom-text: {{ current_user.custom_text or '#38bdf8' }};
+    --custom-text-muted: {{ current_user.custom_text_muted or '#94a3b8' }};
+    --custom-success: {{ current_user.custom_success or '#22c55e' }};
+    --custom-error: {{ current_user.custom_error or '#ef4444' }};
+    --custom-blur: {{ current_user.custom_blur or 10 }}px;
+    --custom-blur-radius: {{ current_user.custom_blur_radius or 8 }}px;
+    --custom-border-radius: {{ current_user.custom_border_radius or 8 }}px;
+    --custom-glow: {{ current_user.custom_glow or 15 }}px;
+    --custom-animation-speed: {{ current_user.custom_animation_speed or '0.6' }}s;
+    --custom-font-family: {{ current_user.custom_font_family or "'Inter', system-ui" }};
+    --custom-font-size: {{ current_user.custom_font_size or '16px' }};
+    --custom-line-height: {{ current_user.custom_line_height or 1.6 }};
+    
+    /* Глобальные переменные */
+    --accent-color: var(--custom-accent);
+    --bg-color: var(--custom-bg);
+    --container-bg: var(--custom-container);
+    --text-main: var(--custom-text);
+    --text-muted: var(--custom-text-muted);
+    --success: var(--custom-success);
+    --error: var(--custom-error);
+    --glass-blur: var(--custom-blur);
+    --border-radius: var(--custom-border-radius);
+    --glow-size: var(--custom-glow);
+    --animation-speed: var(--custom-animation-speed);
+    --font-family: var(--custom-font-family);
+    --font-size: var(--custom-font-size);
+    --line-height: var(--custom-line-height);
+}
+</style>
+{% endif %}
+  
+  <style>
+  /* Кнопка гамбургера */
+  .hamburger {
+      display: none;
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      width: 45px;
+      height: 45px;
+      background: var(--container-bg);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      cursor: pointer;
+      z-index: 1001;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.3s ease;
+  }
+  
+  .hamburger span {
+      width: 24px;
+      height: 2px;
+      background: var(--text-main);
+      border-radius: 2px;
+      transition: all 0.3s ease;
+  }
+  
+  .hamburger.active span:nth-child(1) {
+      transform: rotate(45deg) translate(5px, 5px);
+  }
+  
+  .hamburger.active span:nth-child(2) {
+      opacity: 0;
+  }
+  
+  .hamburger.active span:nth-child(3) {
+      transform: rotate(-45deg) translate(5px, -5px);
+  }
+  
+  .hamburger:hover {
+      border-color: var(--accent-color);
+      transform: scale(1.05);
+  }
+  
+  /* Оверлей */
+  .menu-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 999;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+  }
+  
+  .menu-overlay.active {
+      display: block;
+      opacity: 1;
+  }
+  
+  /* Мобильная навигация */
+  .mobile-nav {
+      position: fixed;
+      top: 0;
+      left: -280px;
+      width: 280px;
+      height: 100vh;
+      background: var(--container-bg);
+      backdrop-filter: blur(20px);
+      border-right: 1px solid var(--glass-border);
+      z-index: 1000;
+      transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+  }
+  
+  .mobile-nav.open {
+      left: 0;
+  }
+  
+  /* Шапка мобильного меню */
+  .mobile-nav-header {
+      padding: 25px 20px;
+      border-bottom: 1px solid var(--glass-border);
+      margin-bottom: 20px;
+  }
+  
+  .mobile-user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 15px;
+  }
+  
+  .mobile-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--accent-color);
+  }
+  
+  .mobile-avatar-placeholder {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: #0b1120;
+  }
+  
+  .mobile-user-name {
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--text-main);
+  }
+  
+  .mobile-user-email {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+  }
+  
+  /* Ссылки в мобильном меню */
+  .mobile-nav-links {
+      flex: 1;
+      padding: 0 15px;
+  }
+  
+  .mobile-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 15px;
+      margin-bottom: 8px;
+      border-radius: 12px;
+      color: var(--text-main);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      font-size: 1rem;
+  }
+  
+  .mobile-nav-link i {
+      width: 24px;
+      color: var(--accent-color);
+      font-size: 1.1rem;
+  }
+  
+  .mobile-nav-link:hover {
+      background: rgba(var(--accent-rgb), 0.1);
+      transform: translateX(5px);
+  }
+  
+  .mobile-nav-link.active {
+      background: rgba(var(--accent-rgb), 0.15);
+      border-left: 3px solid var(--accent-color);
+  }
+  
+  /* Разделитель */
+  .mobile-nav-divider {
+      height: 1px;
+      background: var(--glass-border);
+      margin: 15px 0;
+  }
+  
+  /* Тема в мобильном меню */
+  .mobile-theme-section {
+      padding: 15px;
+      margin-top: 20px;
+      border-top: 1px solid var(--glass-border);
+  }
+  
+  .mobile-theme-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+  }
+  
+  .mobile-theme-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+  }
+  
+  .mobile-theme-item {
+      padding: 6px 12px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+  }
+  
+  .mobile-theme-item:hover {
+      background: var(--accent-color);
+      color: #0b1120;
+  }
+  
+  /* Кнопка выхода */
+  .mobile-logout {
+      margin: 20px 15px;
+      padding: 12px;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 12px;
+      color: var(--error);
+      text-align: center;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+  }
+  
+  .mobile-logout:hover {
+      background: rgba(239, 68, 68, 0.3);
+      transform: translateY(-2px);
+  }
+  
+  /* Адаптация десктопного меню */
+  @media (max-width: 768px) {
+      /* Скрываем обычное меню */
+      nav {
+          display: none !important;
+      }
+      
+      /* Показываем гамбургер */
+      .hamburger {
+          display: flex;
+      }
+      
+      /* Отступ для контента */
+      body {
+          padding-top: 70px;
+      }
+      
+      .container {
+          padding: 0 15px;
+      }
+      
+      /* Увеличиваем кнопки для touch */
+      .btn-action, .icon-btn, button {
+          min-height: 44px;
+      }
+  }
+  
+  @media (min-width: 769px) {
+      .mobile-nav, .menu-overlay, .hamburger {
+          display: none !important;
+      }
+  }
+  
+  /* Анимация для контента при открытом меню */
+  .content-shift {
+      transition: transform 0.3s ease;
+  }
+  
+  body.menu-open .content-shift {
+      transform: translateX(280px);
+  }
+  </style>
+  <style>
+/* ГЛОБАЛЬНОЕ ПРИМЕНЕНИЕ НАСТРОЕК ТЕМЫ */
+* {
+    transition: all var(--animation-speed, 0.3s) ease;
+}
+
+body {
+    font-family: var(--font-family, 'Inter', system-ui);
+    font-size: var(--font-size, 16px);
+    line-height: var(--line-height, 1.6);
+}
+
+button, input, textarea, select, .btn, .btn-action, .btn-view, .icon-btn {
+    font-family: inherit;
+    border-radius: var(--border-radius, 8px);
+}
+
+input, textarea, select {
+    border-radius: var(--border-radius, 8px) !important;
+}
+
+/* Глобальное свечение для кнопок при наведении */
+button:hover, .btn:hover, .btn-action:hover, .icon-btn:hover {
+    box-shadow: 0 0 var(--glow-size, 15px) var(--accent-color);
+}
+
+/* Карточки и контейнеры */
+.card, .file-batch, .file-row-item, .message, .dm-item, .auth-card, .settings-card, .preview-card, .saved-themes-card {
+    border-radius: var(--border-radius, 8px);
+}
+
+/* Модальные окна */
+.modal-content, .custom-modal .modal-content {
+    border-radius: calc(var(--border-radius, 8px) * 2);
+}
+
+/* Анимация для flash сообщений */
+.flash {
+    animation: slideIn var(--animation-speed, 0.3s) ease;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+</style>
+</head>
+<body>
+  <!-- Кнопка гамбургера -->
+  <div class="hamburger" id="hamburger">
+      <span></span>
+      <span></span>
+      <span></span>
+  </div>
+  
+  <!-- Оверлей -->
+  <div class="menu-overlay" id="menu-overlay"></div>
+  
+  <!-- Мобильное меню -->
+  <div class="mobile-nav" id="mobile-nav">
+      <div class="mobile-nav-header">
+          {% if current_user.is_authenticated %}
+          <div class="mobile-user-info">
+              {% if current_user.avatar %}
+              <img src="{{ url_for('static', filename='uploads/avatars/' + current_user.avatar) }}" class="mobile-avatar" alt="{{ current_user.username }}">
+              {% else %}
+              <div class="mobile-avatar-placeholder">
+                  <i class="fa-regular fa-user"></i>
+              </div>
+              {% endif %}
+              <div>
+                  <div class="mobile-user-name">{{ current_user.username }}</div>
+                  <div class="mobile-user-email">{{ current_user.email }}</div>
+              </div>
+          </div>
+          {% else %}
+          <div class="mobile-user-info">
+              <div class="mobile-avatar-placeholder">
+                  <i class="fa-regular fa-user"></i>
+              </div>
+              <div>
+                  <div class="mobile-user-name">Гость</div>
+                  <div class="mobile-user-email">Войдите для доступа</div>
+              </div>
+          </div>
+          {% endif %}
+      </div>
+      
+      <div class="mobile-nav-links">
+          <a href="{{ url_for('index') }}" class="mobile-nav-link" data-nav="index">
+              <i class="fa-solid fa-house"></i>
+              <span>Главная</span>
+          </a>
+          
+          {% if current_user.is_authenticated %}
+          <a href="{{ url_for('upload') }}" class="mobile-nav-link" data-nav="upload">
+              <i class="fa-solid fa-upload"></i>
+              <span>Загрузить</span>
+          </a>
+          
+          <a href="{{ url_for('search') }}" class="mobile-nav-link" data-nav="search">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <span>Поиск</span>
+          </a>
+          
+          <a href="{{ url_for('profile', user_id=current_user.id) }}" class="mobile-nav-link" data-nav="profile">
+              <i class="fa-regular fa-user"></i>
+              <span>Профиль</span>
+          </a>
+          
+          <a href="{{ url_for('lan_chat') }}" class="mobile-nav-link" data-nav="chat">
+              <i class="fa-regular fa-message"></i>
+              <span>Чат</span>
+          </a>
+          
+          {% if current_user.role == 'admin' %}
+          <div class="mobile-nav-divider"></div>
+          <a href="{{ url_for('admin') }}" class="mobile-nav-link" data-nav="admin">
+              <i class="fa-solid fa-shield"></i>
+              <span>Админ панель</span>
+          </a>
+          <a href="{{ url_for('admin_all_files') }}" class="mobile-nav-link" data-nav="admin-files">
+              <i class="fa-regular fa-folder-open"></i>
+              <span>Все файлы</span>
+          </a>
+          {% endif %}
+          
+          <div class="mobile-nav-divider"></div>
+          
+          <!-- Тема -->
+          <div class="mobile-theme-section">
+              <div class="mobile-theme-title">🎨 Тема оформления</div>
+              <div class="mobile-theme-list">
+                  <div class="mobile-theme-item" data-theme="ocean">Стандарт</div>
+                  <div class="mobile-theme-item" data-theme="black">Чёрная</div>
+                  <div class="mobile-theme-item" data-theme="slate">Деловая</div>
+                  <div class="mobile-theme-item" data-theme="midnight">Ночь</div>
+                  <div class="mobile-theme-item" data-theme="neon">Неон</div>
+              </div>
+          </div>
+          
+          <a href="{{ url_for('logout') }}" class="mobile-logout">
+              <i class="fa-solid fa-right-from-bracket"></i>
+              <span>Выйти</span>
+          </a>
+          
+          {% else %}
+          <a href="{{ url_for('login') }}" class="mobile-nav-link">
+              <i class="fa-solid fa-right-to-bracket"></i>
+              <span>Вход</span>
+          </a>
+          <a href="{{ url_for('register') }}" class="mobile-nav-link">
+              <i class="fa-regular fa-user-plus"></i>
+              <span>Регистрация</span>
+          </a>
+          {% endif %}
+      </div>
+  </div>
+  
+  <!-- Десктопная навигация (остаётся как есть) -->
+  <nav>
+    <a href="{{ url_for('index') }}">Главная</a>
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('upload') }}">Загрузить</a>
+      <a href="{{ url_for('search') }}">Поиск</a>
+      <a href="{{ url_for('profile', user_id=current_user.id) }}">Профиль</a>
+      <a href="{{ url_for('logout') }}">Выйти</a>
+      <a href="{{ url_for('lan_chat') }}">Чат</a>
+      
+      {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('admin') }}" class="admin-link">Админ панель</a>
+      {% endif %}
+      
+      <div class="theme-wrapper">
+        <button id="theme-toggle-btn" class="theme-btn">
+          🎨 Тема
+        </button>
+
+        <div id="theme-dropdown" class="theme-dropdown">
+          <div class="theme-section-title">Стандартные</div>
+          <div class="theme-option" data-theme="ocean"> Спокойная</div>
+          <div class="theme-option" data-theme="black"> Чёрная</div>
+          <div class="theme-option" data-theme="slate"> Деловая</div>
+          <div class="theme-option" data-theme="midnight"> Ночная</div>
+          <div class="theme-option" data-theme="neon"> Неоновая</div>
+          
+          <hr class="theme-divider">
+          
+          <div class="theme-section-title" id="custom-themes-title" style="display: none;">Мои темы</div>
+          <div id="custom-themes-list"></div>
+          
+          <hr class="theme-divider">
+          
+          <div class="theme-option" id="custom-theme-option" data-theme="custom">
+             Своя тема
+          </div>
+          <div class="theme-option" id="theme-settings-btn">
+             Настроить тему
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <a href="{{ url_for('register') }}">Регистрация</a>
+    {% endif %}
+  </nav>
+  
+  <div class="container content-shift">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </div>
+  
+  <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+<script>
+// ========== МОБИЛЬНОЕ МЕНЮ ==========
+const hamburger = document.getElementById('hamburger');
+const mobileNav = document.getElementById('mobile-nav');
+const overlay = document.getElementById('menu-overlay');
+const body = document.body;
+
+function openMenu() {
+    mobileNav.classList.add('open');
+    overlay.classList.add('active');
+    hamburger.classList.add('active');
+    body.classList.add('menu-open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeMenu() {
+    mobileNav.classList.remove('open');
+    overlay.classList.remove('active');
+    hamburger.classList.remove('active');
+    body.classList.remove('menu-open');
+    document.body.style.overflow = '';
+}
+
+function toggleMenu() {
+    if (mobileNav.classList.contains('open')) {
+        closeMenu();
+    } else {
+        openMenu();
+    }
+}
+
+hamburger.addEventListener('click', toggleMenu);
+overlay.addEventListener('click', closeMenu);
+
+// Закрытие меню при клике на ссылку
+document.querySelectorAll('.mobile-nav-link').forEach(link => {
+    link.addEventListener('click', closeMenu);
+});
+
+// Подсветка активной ссылки в мобильном меню
+const currentPath = window.location.pathname;
+document.querySelectorAll('.mobile-nav-link').forEach(link => {
+    const href = link.getAttribute('href');
+    if (href && (currentPath === href || (href !== '/' && currentPath.startsWith(href)))) {
+        link.classList.add('active');
+    }
+});
+
+// Уведомление для мобильной версии
+function showMobileToast(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--accent-color);
+        color: #0b1120;
+        padding: 10px 20px;
+        border-radius: 30px;
+        font-size: 14px;
+        font-weight: 600;
+        z-index: 1002;
+        animation: fadeInOut 2s ease;
+        white-space: nowrap;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+}
+
+// Функция для показа тост-уведомлений (общая)
+function showToast(message, type = "success") {
+    let container = document.getElementById("toast-container");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "toast-container";
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    toast.innerText = message;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+// Переключение темы из мобильного меню
+document.querySelectorAll('.mobile-theme-item').forEach(item => {
+    item.addEventListener('click', async function() {
+        const theme = this.dataset.theme;
+        try {
+            const response = await fetch('/set_theme', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ theme: theme })
+            });
+            
+            if (response.ok) {
+                document.documentElement.setAttribute('data-theme', theme);
+                closeMenu();
+                showMobileToast('Тема изменена на ' + this.textContent);
+            }
+        } catch (err) {
+            console.error('Error changing theme:', err);
+        }
+    });
+});
+
+// Загрузка кастомных тем для выпадающего меню
+async function loadCustomThemes() {
+    try {
+        const response = await fetch('/api/custom-themes');
+        if (!response.ok) throw new Error('Failed to load themes');
+        const data = await response.json();
+        const container = document.getElementById('custom-themes-list');
+        const title = document.getElementById('custom-themes-title');
+        
+        if (data.themes && data.themes.length > 0) {
+            if (title) title.style.display = 'block';
+            if (container) {
+                container.innerHTML = data.themes.map(theme => `
+                    <div class="custom-theme-item" data-theme-id="${theme.id}">
+                        <div class="custom-theme-preview" style="background: ${theme.bg}">
+                            <span class="custom-theme-accent" style="background: ${theme.accent}"></span>
+                        </div>
+                        <span class="custom-theme-name">${escapeHtml(theme.name)}</span>
+                        <button class="custom-theme-apply" onclick="event.stopPropagation(); applyThemeFromDropdown(${theme.id})">✔️</button>
+                        <button class="custom-theme-delete" onclick="event.stopPropagation(); deleteThemeFromDropdown(${theme.id})">🗑️</button>
+                    </div>
+                `).join('');
+            }
+        } else {
+            if (title) title.style.display = 'none';
+            if (container) container.innerHTML = '<div class="no-themes">Нет сохранённых тем</div>';
+        }
+    } catch (err) {
+        console.error('Error loading custom themes:', err);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Функции для работы с темами (согласованные имена)
+async function applyThemeFromDropdown(themeId) {
+    try {
+        const response = await fetch(`/api/apply-theme/${themeId}`, { 
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
+            }
+        });
+        if (response.ok) {
+            showToast('Тема применена!', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            const error = await response.text();
+            console.error('Apply theme error:', error);
+            showToast('Ошибка применения темы', 'error');
+        }
+    } catch (err) {
+        console.error('Error applying theme:', err);
+        showToast('Ошибка применения темы: ' + err.message, 'error');
+    }
+}
+
+async function deleteThemeFromDropdown(themeId) {
+    if (confirm('Удалить эту тему?')) {
+        try {
+            const response = await fetch(`/api/delete-theme/${themeId}`, { 
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
+                }
+            });
+            if (response.ok) {
+                showToast('Тема удалена', 'success');
+                loadCustomThemes();
+            } else {
+                showToast('Ошибка удаления темы', 'error');
+            }
+        } catch (err) {
+            console.error('Error deleting theme:', err);
+            showToast('Ошибка удаления: ' + err.message, 'error');
+        }
+    }
+}
+
+// Кнопка "Настроить тему"
+document.getElementById('theme-settings-btn')?.addEventListener('click', () => {
+    window.location.href = "{{ url_for('theme_settings') }}";
+});
+
+// Загружаем кастомные темы
+if (document.getElementById('custom-themes-list')) {
+    loadCustomThemes();
+}
+
+// Закрытие меню при изменении ориентации
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 768 && mobileNav.classList.contains('open')) {
+        closeMenu();
+    }
+});
+
+// ========== СВАЙП ДЛЯ ЗАКРЫТИЯ МЕНЮ ==========
+let touchStartX = 0;
+let touchEndX = 0;
+
+document.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].screenX;
+    const swipeDistance = touchEndX - touchStartX;
+    
+    // Свайп влево для закрытия
+    if (mobileNav.classList.contains('open') && swipeDistance < -50) {
+        closeMenu();
+    }
+    
+    // Свайп вправо для открытия (только если меню закрыто и свайп от левого края)
+    if (!mobileNav.classList.contains('open') && touchStartX < 50 && swipeDistance > 50) {
+        openMenu();
+    }
+});
+
+// Добавляем стили для тостов
+const toastStyles = document.createElement('style');
+toastStyles.textContent = `
+    #toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .toast {
+        padding: 12px 20px;
+        border-radius: 12px;
+        background: var(--container-bg);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--glass-border);
+        color: var(--text-main);
+        font-size: 14px;
+        font-weight: 500;
+        animation: slideInRight 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .toast.success {
+        border-left: 3px solid #22c55e;
+    }
+    .toast.error {
+        border-left: 3px solid #ef4444;
+    }
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    @keyframes fadeInOut {
+        0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+        15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+        85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+        100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+    }
+`;
+document.head.appendChild(toastStyles);
+</script>
+</body>
+</html>
